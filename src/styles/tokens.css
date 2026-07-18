@@ -1,0 +1,250 @@
+/* ============================================================================
+   Koine Ink — design tokens (three-layer: primitive -> semantic -> component)
+   Source of truth for color/space/type. Components must reference var(--…),
+   never raw hex. Light is default; [data-theme="dark"] flips the semantic layer.
+   Palettes validated AA (see contrast note by --on-accent / --border-strong).
+   ==========================================================================*/
+
+/* ----------------------------------------------------------------------------
+   Layer 1 — PRIMITIVES (raw Koine Ink values; never used directly in components)
+   --------------------------------------------------------------------------*/
+:root {
+  /* Light palette (Bible Study App.md) */
+  --ink-l-bg: #f5f6f8;
+  --ink-l-panel: #eaebef;
+  --ink-l-text: #1e2024;
+  --ink-l-muted: #5b6270;
+  --ink-l-border: #d8dae0; /* quiet divider (~1.3:1, intentional) */
+  --ink-l-border-strong: #bcc0ca; /* derived: visible/meaningful boundary */
+  --ink-l-accent: #3b4c9e;
+  --ink-l-accent-strong: #2e3c82; /* hover/pressed of accent */
+  --ink-l-accent-rgb: 59 76 158;
+
+  /* Dark palette (Bible Study App.md) */
+  --ink-d-bg: #14161c;
+  --ink-d-panel: #1b1e26;
+  --ink-d-text: #e4e6eb;
+  --ink-d-muted: #8a90a0;
+  --ink-d-border: #2a2d37;
+  --ink-d-border-strong: #3c4150;
+  --ink-d-accent: #7c8fe0;
+  --ink-d-accent-strong: #93a2e8; /* in dark, hover = lighter */
+  --ink-d-accent-rgb: 124 143 224;
+
+  --ink-white: #ffffff;
+
+  /* ------ Non-color primitives (theme-independent) ------ */
+  /* Spacing — 4px base, tight/IDE density */
+  --sp-0: 0;
+  --sp-05: 2px;
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+
+  /* Radii — low, utilitarian */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-full: 999px;
+
+  /* Type families */
+  --font-serif: "Newsreader", Georgia, "Times New Roman", serif;
+  --font-sans:
+    "IBM Plex Sans", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", "Courier New", monospace;
+
+  /* Type scale */
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13px; /* UI base */
+  --text-base: 14px;
+  --text-md: 15px;
+  --text-lg: 16px;
+  --text-read: 18px; /* verse/body */
+  --text-xl: 20px;
+  --text-2xl: 24px;
+
+  /* Weights & line-heights */
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --lh-tight: 1.25;
+  --lh-normal: 1.5;
+  --lh-read: 1.65;
+
+  /* Motion (restrained — theme recedes) */
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --dur-slow: 240ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Z-index scale */
+  --z-dock: 1;
+  --z-header: 20;
+  --z-drawer: 40;
+  --z-menu: 60;
+  --z-palette: 100;
+  --z-toast: 200;
+}
+
+/* ----------------------------------------------------------------------------
+   Layer 2 — SEMANTIC (purpose aliases; the only color vars components use).
+   Light defaults here; dark overrides below. Both are first-class.
+   --------------------------------------------------------------------------*/
+:root,
+:root[data-theme="light"] {
+  --bg: var(--ink-l-bg);
+  --bg-panel: var(--ink-l-panel);
+  --text: var(--ink-l-text);
+  --text-muted: var(--ink-l-muted);
+  --border: var(--ink-l-border);
+  --border-strong: var(--ink-l-border-strong);
+  --accent: var(--ink-l-accent);
+  --accent-strong: var(--ink-l-accent-strong);
+  --accent-rgb: var(--ink-l-accent-rgb);
+  --on-accent: var(--ink-white); /* white on #3B4C9E = 7.7:1 AA */
+
+  --scrim: rgb(20 22 28 / 0.35);
+  --shadow-1: 0 1px 2px rgb(16 18 24 / 0.06);
+  --shadow-2: 0 6px 20px rgb(16 18 24 / 0.14);
+
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg: var(--ink-d-bg);
+  --bg-panel: var(--ink-d-panel);
+  --text: var(--ink-d-text);
+  --text-muted: var(--ink-d-muted);
+  --border: var(--ink-d-border);
+  --border-strong: var(--ink-d-border-strong);
+  --accent: var(--ink-d-accent);
+  --accent-strong: var(--ink-d-accent-strong);
+  --accent-rgb: var(--ink-d-accent-rgb);
+  --on-accent: var(
+    --ink-d-bg
+  ); /* near-black on #7C8FE0 = ~5.7:1 (white would fail) */
+
+  --scrim: rgb(0 0 0 / 0.5);
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-2: 0 8px 24px rgb(0 0 0 / 0.5);
+
+  color-scheme: dark;
+}
+
+/* Derived tints (theme-independent formulas over the semantic accent) */
+:root {
+  --accent-tint: rgb(var(--accent-rgb) / 0.1);
+  --accent-tint-strong: rgb(var(--accent-rgb) / 0.16);
+  --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+}
+
+/* ----------------------------------------------------------------------------
+   Layer 3 — COMPONENT tokens
+   --------------------------------------------------------------------------*/
+:root {
+  /* Main header / custom window bar */
+  --header-height: 40px;
+  --header-bg: var(--bg-panel);
+  --header-fg: var(--text);
+  --header-border: var(--border);
+
+  /* Bottom status bar */
+  --statusbar-height: 24px;
+  --statusbar-bg: var(--bg-panel);
+  --statusbar-fg: var(--text-muted);
+  --statusbar-border: var(--border);
+
+  /* Toolbar / ghost buttons (header + panel headers) */
+  --btn-fg: var(--text);
+  --btn-hover-bg: var(--accent-tint);
+  --btn-active-bg: var(--accent-tint-strong);
+
+  /* Accent (primary) button */
+  --btn-accent-bg: var(--accent);
+  --btn-accent-fg: var(--on-accent);
+  --btn-accent-hover-bg: var(--accent-strong);
+
+  /* Inputs (search field, etc.) */
+  --input-bg: var(--bg);
+  --input-fg: var(--text);
+  --input-border: var(--border-strong);
+  --input-placeholder: var(--text-muted);
+
+  /* Menu / popover / command palette surface (floats -> gets a shadow) */
+  --menu-bg: var(--bg-panel);
+  --menu-fg: var(--text);
+  --menu-border: var(--border-strong);
+  --menu-shadow: var(--shadow-2);
+  --menu-item-hover-bg: var(--accent-tint);
+
+  /* Reader in-panel TOC drawer */
+  --drawer-width: 244px;
+  --drawer-bg: var(--bg-panel);
+  --drawer-border: var(--border);
+  --drawer-scrim: var(--scrim);
+
+  /* Selected/active state (active Reader, selected menu item) */
+  --selected-bg: var(--accent-tint);
+  --selected-fg: var(--accent);
+}
+
+/* ----------------------------------------------------------------------------
+   Dockview theme bridge — override the built-in `themeVisualStudio` (class
+   `dockview-theme-vs`) color vars with our tokens. Structure comes from that
+   theme; colors come from here and flip automatically with [data-theme].
+   Scoped under .dock-host so it beats the theme's own single-class rules.
+   --------------------------------------------------------------------------*/
+.dock-host .dockview-theme-vs {
+  --dv-group-view-background-color: var(--bg);
+  --dv-tabs-and-actions-container-background-color: var(--bg-panel);
+  --dv-tabs-and-actions-container-height: 34px;
+  --dv-tabs-and-actions-container-font-size: var(--text-sm);
+  --dv-tab-font-size: var(--text-sm);
+
+  --dv-activegroup-visiblepanel-tab-background-color: var(--bg);
+  --dv-activegroup-visiblepanel-tab-color: var(--text);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--bg-panel);
+  --dv-activegroup-hiddenpanel-tab-color: var(--text-muted);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--bg-panel);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--text-muted);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--bg-panel);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--text-muted);
+
+  --dv-separator-border: var(--border);
+  --dv-tab-divider-color: var(--border);
+  --dv-sash-color: transparent;
+  --dv-active-sash-color: var(--accent);
+
+  --dv-drag-over-background-color: var(--accent-tint-strong);
+  --dv-drag-over-border-color: var(--accent);
+  --dv-paneview-active-outline-color: var(--accent);
+  --dv-icon-hover-background-color: var(--accent-tint);
+
+  --dv-tab-border-radius: 0px; /* square IDE tabs */
+  --dv-border-radius: var(--radius-sm);
+  --dv-context-menu-background-color: var(--bg-panel);
+  --dv-context-menu-color: var(--text);
+  --dv-floating-box-shadow: var(--shadow-2);
+  --dv-floating-titlebar-background-color: var(--bg-panel);
+  --dv-transition-duration: var(--dur-fast);
+  --dv-scrollbar-background-color: var(--bg-panel);
+}
+
+/* Accent underline on the active panel's active tab — signals the "active
+   Reader" that global commands (Cmd-K, translation switch) target. */
+.dock-host .dockview-theme-vs .dv-active-group .dv-tab.dv-active-tab {
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+/* Respect reduced-motion globally for dockview's own transitions. */
+@media (prefers-reduced-motion: reduce) {
+  .dock-host .dockview-theme-vs {
+    --dv-transition-duration: 0ms;
+  }
+}

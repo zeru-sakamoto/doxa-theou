@@ -19,7 +19,11 @@ doxa-theou is a Bible Study App, built as a desktop app with Tauri 2 (Rust backe
 
 ## Architecture
 
-- `src/` — React/TypeScript frontend. Entry point `src/main.tsx`, root component `src/App.tsx`. Talks to native code via `@tauri-apps/api` (`invoke("command_name")`).
+- `src/` — React/TypeScript frontend. Entry `src/main.tsx` (imports fonts + `styles/{tokens,base,shell}.css` and dockview CSS), root `src/App.tsx` (wraps `WorkspaceShell` in `WorkspaceProvider`). Talks to native code via `@tauri-apps/api` (`invoke`), wrapped with types in `src/api.ts`.
+  - `src/workspace/` — the app shell: custom window-bar `Header`, `StatusBar` (live clock), `CommandPalette` (⌘K go-to-reference), `dock.tsx` (dockview wrapper + panel registry + `DockProvider`/`useDock` imperative API + layout save/restore in localStorage), reusable `Menu`, hand-rolled SVG `icons`.
+  - `src/panels/` — dockable panel components: `ReaderPanel` (+ `reader/TocDrawer` book/chapter accordion), `NotesPanel` (stub), `SearchPanel`, `SettingsPanel` (theme toggle lives here). One Reader = one translation, chosen at open time.
+  - `src/state/workspace.tsx` — React-context store: theme (writes `data-theme`), books/translations loaded once, active reference/translation.
+  - Modular workspace uses **dockview-react** (drag-to-dock, themed via `themeVisualStudio` + `--dv-*` overrides in `tokens.css`, scoped under `.dock-host`). Custom titlebar: `decorations:false` + window permissions in `capabilities/default.json`, controls via `getCurrentWindow()`.
 - `src-tauri/` — Rust backend, crate name `doxa_theou_lib` (see `src-tauri/Cargo.toml`).
   - `src-tauri/src/main.rs` — binary entry point, just calls `doxa_theou_lib::run()`.
   - `src-tauri/src/lib.rs` — actual app setup: Tauri builder, plugin registration, and `#[tauri::command]` functions exposed to the frontend via `invoke_handler(tauri::generate_handler![...])`. New Rust commands callable from JS/TS go here and must be added to that handler list. Opens the DB in `setup` and stores it as `State<Mutex<Connection>>`.
@@ -31,3 +35,10 @@ doxa-theou is a Bible Study App, built as a desktop app with Tauri 2 (Rust backe
 - `site-content/` — content for a companion website/marketing site (separate from the app itself).
 
 The frontend and Rust backend are two separate build systems (Vite/tsc for TS, Cargo for Rust) orchestrated together by the Tauri CLI; when adding a native capability, expose it as a `#[tauri::command]` in `lib.rs` and call it from React via `invoke()`.
+
+## UI / Design workflow
+
+Design language is **"Koine Ink"** (see `Bible Study App.md`): utilitarian, low-chrome, information-dense — Logos × code-editor. Light + dark are both first-class. Fonts: Newsreader (verse/body), IBM Plex Sans (UI), IBM Plex Mono (refs/data). All of this is locked into `src/styles/tokens.css` as three-layer CSS-variable tokens (primitive → semantic → component); **components reference `var(--…)`, never raw hex**.
+
+When **building or modifying any UI component**, follow this pipeline in order (do not skip steps):
+**ui-ux-pro-max** (pick/validate style·palette·fonts, WCAG contrast) → **design-system** (lock decisions into `tokens.css`) → **ui-styling** (build against tokens) → **motion-framer** (`motion/react`; restrained, honor `prefers-reduced-motion`).

@@ -4,7 +4,23 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tauri + React + Typescript</title>
+    <title>Δόξα Θεοῦ — doxa-theou</title>
+    <script>
+      // Apply the saved/system theme before first paint (avoids a flash).
+      (function () {
+        try {
+          var t = localStorage.getItem("doxa-theme");
+          if (t !== "light" && t !== "dark") {
+            t = window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+          }
+          document.documentElement.setAttribute("data-theme", t);
+          document.documentElement.style.background =
+            t === "dark" ? "#14161C" : "#F5F6F8";
+        } catch (e) {}
+      })();
+    </script>
   </head>
 
   <body>
