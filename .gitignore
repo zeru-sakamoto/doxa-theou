@@ -13,6 +13,12 @@ dist-ssr
 *.local
 site-content
 
+# Bible data — the app is open source, the DB is not
+.env
+*.db
+*.sqlite
+/db/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

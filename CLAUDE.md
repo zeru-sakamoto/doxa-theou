@@ -15,13 +15,15 @@ doxa-theou is a Bible Study App, built as a desktop app with Tauri 2 (Rust backe
 - `npm run tauri build` — produce a release desktop bundle
 - `cargo build` / `cargo check` (run from `src-tauri/`) — build/check the Rust side directly
 - `cargo test` (run from `src-tauri/`) — run Rust tests; no test suite exists yet
+- `python scripts/import_bible.py` — one-time (stdlib only, no deps): build the normalized `bible.sqlite` from the source DB, then copy it into the app-local-data dir. First copy `.env.example` to `.env` and set `BIBLE_SOURCE_DB`/`BIBLE_SOURCE_TABLE` to your local source DB's path and table name (the DB isn't shipped with the source). Verse data comes from this local import, **not** an ESV/network API. See `DESIGN.md`.
 
 ## Architecture
 
 - `src/` — React/TypeScript frontend. Entry point `src/main.tsx`, root component `src/App.tsx`. Talks to native code via `@tauri-apps/api` (`invoke("command_name")`).
 - `src-tauri/` — Rust backend, crate name `doxa_theou_lib` (see `src-tauri/Cargo.toml`).
   - `src-tauri/src/main.rs` — binary entry point, just calls `doxa_theou_lib::run()`.
-  - `src-tauri/src/lib.rs` — actual app setup: Tauri builder, plugin registration, and `#[tauri::command]` functions exposed to the frontend via `invoke_handler(tauri::generate_handler![...])`. New Rust commands callable from JS/TS go here and must be added to that handler list.
+  - `src-tauri/src/lib.rs` — actual app setup: Tauri builder, plugin registration, and `#[tauri::command]` functions exposed to the frontend via `invoke_handler(tauri::generate_handler![...])`. New Rust commands callable from JS/TS go here and must be added to that handler list. Opens the DB in `setup` and stores it as `State<Mutex<Connection>>`.
+  - `src-tauri/src/db.rs` — read-only `rusqlite` (bundled) access to `bible.sqlite`: verse/book/search queries and the structs returned to the frontend. The DB is loaded from the app-local-data dir and produced by `scripts/import_bible.py`. Backend design in `DESIGN.md`.
   - `src-tauri/tauri.conf.json` — app identifier, window config, build hooks (`beforeDevCommand`/`beforeBuildCommand` wire this to the Vite scripts above), and bundler target/icon config.
   - `src-tauri/capabilities/` — Tauri 2 permission/capability grants for the webview.
 - `vite.config.ts` — dev server is pinned to port 1420 (`strictPort: true`) because `tauri.conf.json` expects it there; `src-tauri/` is excluded from Vite's watcher.

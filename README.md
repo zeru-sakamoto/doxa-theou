@@ -1,4 +1,5 @@
 # doxa-theou
+
 Bible Study App for my Workflows
 
 Built with Tauri + React + TypeScript + Vite.
