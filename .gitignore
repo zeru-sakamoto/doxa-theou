@@ -29,3 +29,6 @@ site-content
 *.njsproj
 *.sln
 *.sw?
+
+# Mock Data
+src/panels/notes/sample

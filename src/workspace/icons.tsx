@@ -37,6 +37,12 @@ export const SearchIcon = (p: { size?: number }) => (
   </Svg>
 );
 
+export const FilterIcon = (p: { size?: number }) => (
+  <Svg {...p}>
+    <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
+  </Svg>
+);
+
 export const NotesIcon = (p: { size?: number }) => (
   <Svg {...p}>
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />

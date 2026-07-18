@@ -1,6 +1,7 @@
 // Dockview wrapper: panel registry, imperative open/goto/layout API (via
-// context), the ⋯ group overflow, and layout persistence. The DockviewReact
-// element is rendered by <Dockview/>; the shell places it in the center.
+// context), the tab right-click menu, and layout persistence. The
+// DockviewReact element is rendered by <Dockview/>; the shell places it in
+// the center.
 import {
   createContext,
   useCallback,
@@ -12,17 +13,17 @@ import {
 import {
   DockviewReact,
   themeVisualStudio,
+  type BuiltInContextMenuItem,
   type DockviewApi,
-  type IDockviewHeaderActionsProps,
+  type GetTabContextMenuItemsParams,
   type IDockviewPanelProps,
+  type ReactContextMenuItemConfig,
 } from "dockview-react";
 import { ReaderPanel, type ReaderParams } from "../panels/ReaderPanel";
 import { NotesPanel } from "../panels/NotesPanel";
 import { SearchPanel } from "../panels/SearchPanel";
 import { SettingsPanel } from "../panels/SettingsPanel";
 import { formatReference, useWorkspace } from "../state/workspace";
-import { Menu, type MenuAction } from "./Menu";
-import { MoreIcon } from "./icons";
 
 const LAYOUT_KEY = "doxa-layout";
 type Singleton = "notes" | "search" | "settings";
@@ -175,57 +176,41 @@ export function DockProvider({ children }: { children: ReactNode }) {
 
 export function Dockview() {
   const { register } = useDock();
+  const ws = useWorkspace();
+
+  // Right-click a tab for Copy reference / Close others / Close — replaces
+  // the old always-visible ⋯ overflow button.
+  const getTabContextMenuItems = useCallback(
+    (
+      _params: GetTabContextMenuItemsParams,
+    ): (BuiltInContextMenuItem | ReactContextMenuItemConfig)[] => [
+      {
+        label: "Copy reference",
+        disabled: !ws.activeReference,
+        action: () => {
+          if (ws.activeReference)
+            navigator.clipboard?.writeText(
+              formatReference(ws.activeReference, ws.bookName),
+            );
+        },
+      },
+      "separator",
+      "closeOthers",
+      "separator",
+      "close",
+    ],
+    [ws],
+  );
+
   return (
     <div className="dock-host">
       <DockviewReact
         components={components}
         theme={themeVisualStudio}
-        rightHeaderActionsComponent={GroupControls}
         dndStrategy="pointer"
+        getTabContextMenuItems={getTabContextMenuItems}
         onReady={(e) => register(e.api)}
       />
-    </div>
-  );
-}
-
-// The ⋯ overflow, rendered on the right of each group's tab bar; acts on the
-// group's active panel.
-function GroupControls(props: IDockviewHeaderActionsProps) {
-  const ws = useWorkspace();
-  const { activePanel, panels } = props;
-  const items: MenuAction[] = [
-    {
-      label: "Copy reference",
-      disabled: !ws.activeReference,
-      onSelect: () => {
-        if (ws.activeReference)
-          navigator.clipboard?.writeText(
-            formatReference(ws.activeReference, ws.bookName),
-          );
-      },
-    },
-    {
-      label: "Close others",
-      disabled: panels.length <= 1,
-      onSelect: () =>
-        panels.filter((p) => p !== activePanel).forEach((p) => p.api.close()),
-    },
-    {
-      label: "Close",
-      danger: true,
-      onSelect: () => activePanel?.api.close(),
-    },
-  ];
-  return (
-    <div className="groupctl">
-      <Menu
-        triggerClassName="iconbtn"
-        title="Panel menu"
-        align="right"
-        items={items}
-      >
-        <MoreIcon size={16} />
-      </Menu>
     </div>
   );
 }

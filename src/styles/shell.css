@@ -337,15 +337,21 @@
 }
 
 /* ================= Reader TOC drawer ================= */
+/* top: 30px keeps the overlay below the reader/notes header bar. */
 .drawer__scrim {
   position: absolute;
-  inset: 0;
+  top: 30px;
+  right: 0;
+  bottom: 0;
+  left: 0;
   background: var(--drawer-scrim);
   z-index: calc(var(--z-drawer) - 1);
 }
 .drawer {
   position: absolute;
-  inset: 0 auto 0 0;
+  top: 30px;
+  bottom: 0;
+  left: 0;
   width: var(--drawer-width);
   display: flex;
   background: var(--drawer-bg);
@@ -432,19 +438,38 @@
   color: var(--on-accent);
 }
 
-/* ================= Notes (stub) ================= */
+/* ================= Notes ================= */
+.notes__search {
+  width: 200px;
+}
+.notes__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-left: auto;
+}
+.iconbtn.is-active {
+  color: var(--accent);
+  background: var(--accent-tint);
+}
+.notes__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
 .notes__pad {
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
-  height: 100%;
+  flex: 1;
+  overflow: auto;
   padding: var(--sp-4);
 }
 .notes__editor {
   flex: 1;
   resize: none;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border: none;
   background: var(--bg);
   color: var(--text);
   padding: var(--sp-3);
@@ -454,7 +479,124 @@
 }
 .notes__editor:focus-visible {
   outline: none;
+}
+
+/* Notes list sidebar (collapsible, pushes .notes__pad rather than overlaying) */
+.notes__sidebar {
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.notes__sidebar__inner {
+  width: 244px; /* matches --drawer-width; fixed so content doesn't reflow mid-animation */
+  height: 100%;
+  overflow: auto;
+  padding: var(--sp-2);
+  border-right: 1px solid var(--drawer-border);
+  background: var(--drawer-bg);
+}
+
+/* Note list cards (in the Notes sidebar) */
+.notecards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.notecard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: var(--sp-2);
+  margin-bottom: 2px;
+  border: none;
+  border-left: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+.notecard:hover {
+  background: var(--btn-hover-bg);
+  border-left-color: var(--accent);
+}
+.notecard__title {
+  font-size: var(--text-sm);
+  font-weight: var(--fw-medium);
+  color: var(--text);
+}
+.notecard__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.notecard__tag {
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  background: var(--accent-tint);
+  color: var(--accent);
+  font-size: var(--text-2xs);
+}
+.notecard__preview {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Notes header filter popover (by tag or by book) */
+.filterpopover {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  width: 260px;
+  padding: var(--sp-2);
+}
+.filterpopover__seg {
+  align-self: flex-start;
+}
+.filterpopover__taginput {
+  width: 100%;
+}
+.filterpopover__books {
+  max-height: 260px;
+  overflow: auto;
+}
+.filterpopover__group + .filterpopover__group {
+  margin-top: var(--sp-3);
+}
+.filterpopover__grouphead {
+  margin: 0 0 var(--sp-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+.filterpopover__bookgrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+.filterchip {
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+.filterchip:hover {
   border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-tint);
+}
+.filterchip.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
 }
 
 /* ================= Search ================= */
@@ -571,13 +713,6 @@
   height: 22px;
   border-radius: var(--radius-full);
   border: 1px solid var(--border);
-}
-
-/* ================= Panel ⋯ controls ================= */
-.groupctl {
-  display: flex;
-  align-items: center;
-  padding: 0 4px;
 }
 
 /* ================= Command palette ================= */

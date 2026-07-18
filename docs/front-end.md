@@ -100,13 +100,16 @@ src/
     Header.tsx             custom window bar + global controls
     StatusBar.tsx          reference · translation · status · live clock
     CommandPalette.tsx     ⌘K go-to-reference
-    dock.tsx               dockview wrapper, panel registry, DockProvider/useDock, ⋯ controls
+    dock.tsx               dockview wrapper, panel registry, DockProvider/useDock, tab context menu
     Menu.tsx               reusable dropdown menu
     icons.tsx              inline SVG icon set
   panels/
     ReaderPanel.tsx        scripture reader (one translation per panel)
     reader/TocDrawer.tsx   in-panel book/chapter navigator
-    NotesPanel.tsx         stub
+    NotesPanel.tsx         header (list/search/filter) + stub editor body
+    notes/NotesDrawer.tsx  in-panel note-list drawer (cards: title, tags, preview)
+    notes/NotesFilterMenu.tsx  tag (text) / book (multi-select) filter popover
+    notes/notes.ts         sample-notes loader + frontmatter parser
     SearchPanel.tsx        Verses + Notes result groups
     SettingsPanel.tsx      theme toggle, default translation, highlight placeholder
 ```
@@ -143,8 +146,9 @@ A `dockview-react` surface. Panels can be dragged to split/tab/rearrange freely
 (1×1, 2×1, quad, …). The layout is serialized to `localStorage` on every change
 and restored on launch; **Layout ▸ Save/Reset** manage it explicitly.
 
-Each panel's group header shows dockview tabs (drag + close) plus a `⋯` overflow
-(**Copy reference · Close others · Close**), acting on the group's active panel.
+Each panel's group header shows dockview tabs (drag + close). Right-clicking a
+tab opens a native context menu (**Copy reference · Close others · Close**),
+via `DockviewReact`'s `getTabContextMenuItems`.
 
 ---
 
@@ -152,12 +156,12 @@ Each panel's group header shows dockview tabs (drag + close) plus a `⋯` overfl
 
 Registered in `dock.tsx` under a `components` map (`id → component`).
 
-| Panel        | Wired to backend            | Notes                                                       |
-| ------------ | --------------------------- | ----------------------------------------------------------- |
-| **Reader**   | `get_chapter`, `list_books` | One translation, chosen at open time ("version-dedicated"). |
-| **Search**   | `search` (FTS5 / bm25)      | Verses + Notes groups; Notes search is a placeholder.       |
-| **Notes**    | —                           | Stub textarea; Markdown-on-disk editor is a later pass.     |
-| **Settings** | `list_translations`         | Theme toggle, default translation, highlight swatches.      |
+| Panel        | Wired to backend            | Notes                                                                                                         |
+| ------------ | --------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| **Reader**   | `get_chapter`, `list_books` | One translation, chosen at open time ("version-dedicated").                                                   |
+| **Search**   | `search` (FTS5 / bm25)      | Verses + Notes groups; Notes search is a placeholder.                                                         |
+| **Notes**    | —                           | Header (list/search/filter) is real, over sample Markdown+frontmatter notes; editor is still a stub textarea. |
+| **Settings** | `list_translations`         | Theme toggle, default translation, highlight swatches.                                                        |
 
 **Reader.** Header carries the **TOC toggle**, current reference, and the bound
 version. The body renders verses (Newsreader) with mono, accent verse numbers.
@@ -168,6 +172,29 @@ go-to-reference.
 (spring). Books are listed by testament as accordions; expanding a book reveals a
 grid of chapter-number chips; clicking a chip navigates and closes the drawer.
 Chapter counts come from a fixed canonical table in `api.ts` (no backend query).
+
+**Notes.** Header, left → right: a hamburger toggles the note-list sidebar
+(shows an active/accent state while open), a fixed-width search field filters
+that list live (title/tags/body, substring match), a filter icon sits right
+beside it opening a Tags/Books popover, and — pinned to the far right of the
+bar — a separate "⋯" menu (`New note`, disabled for now; note creation isn't
+built yet). The filter popover's Tags mode is one free-text input; Books mode
+is a 3-column grid of book-abbreviation toggle buttons grouped under "Old
+Testament"/"New Testament" headers (same `book.testament` split
+`reader/TocDrawer.tsx` uses).
+
+Notes come from `notes/notes.ts`, which parses a handful of sample `.md`
+files (`notes/sample/*.md`) with YAML-ish frontmatter (`id`, `title`, `tags`,
+`anchors`, `created`, `modified`) via a small hand-rolled parser — no backend
+or persistence yet, matching the future Markdown-on-disk design in
+`Bible Study App.md`. Unlike the Reader's TOC drawer, the note-list sidebar
+(`notes/NotesDrawer.tsx`) isn't an overlay — it's a collapsible flex column
+that animates width and pushes `.notes__pad` over rather than floating on
+top with a scrim, so it never covers the header. Each card shows title, tag
+pills, and the note's anchors joined as a preview line (`John 3:16 · Rom
+8:28`). Selecting a card just closes the sidebar for now — wiring a note
+into the editor body is future work. The editor textarea itself is
+borderless (no card/box chrome), matching the rest of the pane.
 
 ---
 
@@ -228,9 +255,13 @@ small addition once cross-ref data is sourced (its DB table is currently empty).
 
 Marked with `ponytail:` comments in-code, each with an upgrade path:
 
-- **Notes** is a visual stub (Markdown-on-disk editor comes later).
+- **Notes** editor is a visual stub; the header/list/filter are real but read
+  from a handful of sample `.md` files bundled with the app, not a real
+  notes store (file-watcher + SQLite index comes later).
 - **Chapter counts** are the fixed 66-book canon in `api.ts` — no backend query.
 - **State** is React context, not a store library.
-- The `⋯` menu is group-level, acting on the active panel (not a per-tab menu).
+- Tab right-click **Copy reference** always copies the globally active
+  Reader's reference, not necessarily the reference of the specific panel
+  right-clicked (there's no per-panel reference lookup yet).
 - No prev/next chapter controls in the Reader — navigation is TOC + ⌘K.
 - Cross-references panel deferred (empty data table).
