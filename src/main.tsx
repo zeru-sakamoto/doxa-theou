@@ -17,6 +17,7 @@ import "dockview-react/dist/styles/dockview.css";
 import "./styles/tokens.css";
 import "./styles/base.css";
 import "./styles/shell.css";
+import "./styles/notes-editor.css";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

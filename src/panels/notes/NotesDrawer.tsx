@@ -2,7 +2,7 @@
 // Unlike reader/TocDrawer (an ephemeral overlay), this is a persistent
 // collapsible column — the note body reflows around it when toggled.
 import { motion, useReducedMotion } from "motion/react";
-import type { Note } from "./notes";
+import { notePreview, type Note } from "./notes";
 
 // Matches --drawer-width in tokens.css.
 const SIDEBAR_WIDTH = 244;
@@ -18,7 +18,7 @@ export function NotesDrawer({ open, notes, onSelect }: Props) {
 
   return (
     <motion.aside
-      className="notes__sidebar"
+      className="overflow-hidden shrink-0"
       aria-label="Notes"
       aria-hidden={!open}
       initial={false}
@@ -29,29 +29,42 @@ export function NotesDrawer({ open, notes, onSelect }: Props) {
           : { type: "spring", stiffness: 520, damping: 44 }
       }
     >
-      <div className="notes__sidebar__inner">
+      <div className="w-[244px] h-full overflow-auto p-2 border-r border-border bg-panel">
         {notes.length === 0 ? (
           <p className="panel__muted">No notes match.</p>
         ) : (
-          <ul className="notecards">
+          <ul>
             {notes.map((n) => (
               <li key={n.id}>
                 <button
                   type="button"
-                  className="notecard"
+                  className="flex flex-col gap-1 w-full p-2 mb-0.5 border-0 border-l-2 border-l-transparent rounded-(--radius-sm) bg-transparent text-left hover:bg-accent-tint hover:border-l-accent"
                   onClick={() => onSelect(n)}
                 >
-                  <span className="notecard__title">{n.title}</span>
+                  <span className="flex items-center gap-1.5 text-(length:--text-sm) font-medium text-ink">
+                    {n.color && (
+                      <span
+                        className="shrink-0 w-2 h-2 rounded-full"
+                        style={{ background: n.color }}
+                      />
+                    )}
+                    <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+                      {notePreview(n)}
+                    </span>
+                  </span>
                   {n.tags.length > 0 && (
-                    <span className="notecard__tags">
+                    <span className="flex flex-wrap gap-1">
                       {n.tags.map((t) => (
-                        <span key={t} className="notecard__tag">
+                        <span
+                          key={t}
+                          className="py-px px-1.5 rounded-full bg-accent-tint text-accent text-(length:--text-2xs)"
+                        >
                           {t}
                         </span>
                       ))}
                     </span>
                   )}
-                  <span className="notecard__preview">
+                  <span className="font-(family-name:--font-mono) text-(length:--text-xs) text-muted whitespace-nowrap overflow-hidden text-ellipsis">
                     {n.anchors.join(" · ")}
                   </span>
                 </button>

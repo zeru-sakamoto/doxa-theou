@@ -26,6 +26,8 @@ export interface Reference {
   verse?: number;
 }
 
+export const DEFAULT_NOTES_HIGHLIGHT_COLOR = "var(--highlight-indigo)";
+
 interface WorkspaceCtx {
   theme: Theme;
   setTheme: (t: Theme) => void;
@@ -41,10 +43,19 @@ interface WorkspaceCtx {
   setActiveReference: (r: Reference | null) => void;
   bookName: (id: number) => string;
   bookAbbr: (id: number) => string;
+  notesHighlightColor: string;
+  setNotesHighlightColor: (c: string) => void;
+  notesLastColor: string | undefined;
+  setNotesLastColor: (c: string | undefined) => void;
+  notesFolder: string | null;
+  setNotesFolder: (p: string | null) => void;
 }
 
 const Ctx = createContext<WorkspaceCtx | null>(null);
 const THEME_KEY = "doxa-theme";
+const NOTES_HIGHLIGHT_COLOR_KEY = "doxa-notes-highlight-color";
+const NOTES_LAST_COLOR_KEY = "doxa-notes-last-color";
+const NOTES_FOLDER_KEY = "doxa-notes-folder";
 
 function initialTheme(): Theme {
   const saved = localStorage.getItem(THEME_KEY);
@@ -63,6 +74,17 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [activeTranslation, setActiveTranslation] = useState("ESV");
   const [activeReference, setActiveReference] = useState<Reference | null>(
     null,
+  );
+  const [notesHighlightColor, setNotesHighlightColorState] = useState(
+    () =>
+      localStorage.getItem(NOTES_HIGHLIGHT_COLOR_KEY) ??
+      DEFAULT_NOTES_HIGHLIGHT_COLOR,
+  );
+  const [notesLastColor, setNotesLastColorState] = useState<string | undefined>(
+    () => localStorage.getItem(NOTES_LAST_COLOR_KEY) ?? undefined,
+  );
+  const [notesFolder, setNotesFolderState] = useState<string | null>(() =>
+    localStorage.getItem(NOTES_FOLDER_KEY),
   );
 
   // Apply + persist theme (before paint to avoid a flash).
@@ -98,6 +120,20 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     (id: number) => books.find((b) => b.id === id)?.abbr ?? String(id),
     [books],
   );
+  const setNotesHighlightColor = useCallback((c: string) => {
+    setNotesHighlightColorState(c);
+    localStorage.setItem(NOTES_HIGHLIGHT_COLOR_KEY, c);
+  }, []);
+  const setNotesLastColor = useCallback((c: string | undefined) => {
+    setNotesLastColorState(c);
+    if (c) localStorage.setItem(NOTES_LAST_COLOR_KEY, c);
+    else localStorage.removeItem(NOTES_LAST_COLOR_KEY);
+  }, []);
+  const setNotesFolder = useCallback((p: string | null) => {
+    setNotesFolderState(p);
+    if (p) localStorage.setItem(NOTES_FOLDER_KEY, p);
+    else localStorage.removeItem(NOTES_FOLDER_KEY);
+  }, []);
 
   const defaultTranslation =
     translations.find((t) => t.is_default)?.code ??
@@ -120,6 +156,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setActiveReference,
       bookName,
       bookAbbr,
+      notesHighlightColor,
+      setNotesHighlightColor,
+      notesLastColor,
+      setNotesLastColor,
+      notesFolder,
+      setNotesFolder,
     }),
     [
       theme,
@@ -134,6 +176,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       activeReference,
       bookName,
       bookAbbr,
+      notesHighlightColor,
+      setNotesHighlightColor,
+      notesLastColor,
+      setNotesLastColor,
+      notesFolder,
+      setNotesFolder,
     ],
   );
 

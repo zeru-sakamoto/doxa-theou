@@ -9,13 +9,17 @@ export function WorkspaceShell() {
   const ws = useWorkspace();
   return (
     <DockProvider>
-      <div className="shell">
+      <div className="grid h-full grid-rows-[var(--header-height)_1fr_var(--statusbar-height)]">
         <Header />
         {ws.loadError ? (
-          <div className="dberror">
-            <div className="dberror__box">
-              <h2 className="dberror__title">Bible database not found</h2>
-              <pre className="dberror__msg">{ws.loadError}</pre>
+          <div className="flex items-center justify-center p-8 bg-bg">
+            <div className="max-w-[560px]">
+              <h2 className="mb-3 text-(length:--text-xl)">
+                Bible database not found
+              </h2>
+              <pre className="whitespace-pre-wrap rounded-(--radius-sm) border border-border bg-panel p-3 font-(family-name:--font-mono) text-(length:--text-xs) text-muted">
+                {ws.loadError}
+              </pre>
             </div>
           </div>
         ) : (

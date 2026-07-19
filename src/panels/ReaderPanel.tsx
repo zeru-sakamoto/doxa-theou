@@ -79,7 +79,10 @@ export function ReaderPanel({
   }, []);
 
   return (
-    <div className="reader" onMouseDown={markActive}>
+    <div
+      className="relative h-full flex flex-col bg-bg overflow-hidden"
+      onMouseDown={markActive}
+    >
       <div className="reader__bar">
         <button
           className="iconbtn"
@@ -90,13 +93,15 @@ export function ReaderPanel({
         >
           <MenuIcon size={16} />
         </button>
-        <span className="reader__ref">
+        <span className="font-medium text-(length:--text-sm)">
           {ws.bookName(bookId)} {chapter}
         </span>
-        <span className="reader__version">{translation}</span>
+        <span className="ml-auto font-(family-name:--font-mono) text-(length:--text-xs) text-muted tracking-[0.03em]">
+          {translation}
+        </span>
       </div>
 
-      <div className="reader__body">
+      <div className="flex-1 overflow-auto">
         {error && <p className="panel__error">{error}</p>}
         {!error && loading && <p className="panel__muted">Loading…</p>}
         {!error && !loading && verses.length === 0 && (
@@ -105,11 +110,13 @@ export function ReaderPanel({
           </p>
         )}
         {!error && verses.length > 0 && (
-          <ol className="verses">
+          <ol className="list-none m-0 py-4 px-6 max-w-[70ch] font-(family-name:--font-serif) text-(length:--text-read) leading-(--lh-read) text-ink">
             {verses.map((v) => (
-              <li key={v.verse_ref_id} className="verse">
-                <sup className="verse__num">{v.verse}</sup>
-                <span className="verse__text">{v.text}</span>
+              <li key={v.verse_ref_id} className="mb-[0.35em]">
+                <sup className="font-(family-name:--font-mono) text-[0.72em] font-medium text-accent align-super mr-[0.4em]">
+                  {v.verse}
+                </sup>
+                <span>{v.text}</span>
               </li>
             ))}
           </ol>

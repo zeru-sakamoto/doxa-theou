@@ -1,0 +1,135 @@
+/* ============================================================================
+   Notes editor (Tiptap/ProseMirror) content typography. Lives outside
+   shell.css because ProseMirror generates its own markup (h1, mark, ul, …)
+   that can't be styled via Tailwind classNames on JSX we control — plain
+   descendant selectors are the only option. Colors/spacing still reference
+   the --editor-* tokens from tokens.css, never raw values.
+   ==========================================================================*/
+
+.tiptap {
+  font-family: var(--font-serif);
+  font-size: var(--text-read);
+  line-height: var(--lh-read);
+  color: var(--text);
+  outline: none;
+}
+
+.tiptap p {
+  margin: 0 0 var(--sp-3);
+}
+
+.tiptap h1,
+.tiptap h2,
+.tiptap h3 {
+  font-family: var(--font-serif);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  color: var(--editor-heading-fg);
+  margin: var(--sp-5) 0 var(--sp-2);
+}
+.tiptap h1:first-child,
+.tiptap h2:first-child,
+.tiptap h3:first-child {
+  margin-top: 0;
+}
+.tiptap h1 {
+  font-size: var(--text-2xl);
+}
+.tiptap h2 {
+  font-size: var(--text-xl);
+}
+.tiptap h3 {
+  font-size: var(--text-lg);
+}
+
+.tiptap strong {
+  font-weight: var(--fw-semibold);
+}
+.tiptap em {
+  font-style: italic;
+}
+.tiptap u {
+  text-decoration: underline;
+}
+.tiptap mark {
+  background: var(--editor-highlight-bg);
+  color: inherit;
+  border-radius: var(--radius-xs);
+  padding: 0 2px;
+}
+
+.tiptap ul,
+.tiptap ol {
+  margin: 0 0 var(--sp-3);
+  padding-left: var(--sp-5);
+}
+.tiptap ul {
+  list-style: disc outside;
+}
+.tiptap ol {
+  list-style: decimal outside;
+}
+.tiptap li p {
+  margin: 0;
+}
+.tiptap ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: var(--sp-2);
+}
+.tiptap ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+.tiptap ul[data-type="taskList"] li > label {
+  margin-top: 3px;
+}
+
+.tiptap blockquote {
+  margin: 0 0 var(--sp-3);
+  padding-left: var(--sp-3);
+  border-left: 2px solid var(--editor-blockquote-border);
+  color: var(--editor-muted-fg);
+}
+
+.tiptap code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--editor-code-bg);
+  border: 1px solid var(--editor-code-border);
+  border-radius: var(--radius-xs);
+  padding: 0 4px;
+}
+.tiptap pre {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  background: var(--editor-code-bg);
+  border: 1px solid var(--editor-code-border);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-2) var(--sp-3);
+  overflow-x: auto;
+}
+.tiptap pre code {
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.tiptap hr {
+  border: none;
+  border-top: 1px solid var(--editor-hr-color);
+  margin: var(--sp-4) 0;
+}
+
+.tiptap .selectedCell,
+.tiptap .ProseMirror-selectednode {
+  outline: 2px solid var(--editor-selectednode-outline);
+}
+
+.tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--editor-muted-fg);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}

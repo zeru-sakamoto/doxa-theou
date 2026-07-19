@@ -148,3 +148,130 @@ export const MoonIcon = (p: { size?: number }) => (
     <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z" />
   </Svg>
 );
+
+export const CheckIcon = (p: { size?: number }) => (
+  <Svg {...p}>
+    <path d="M20 6 9 17l-5-5" />
+  </Svg>
+);
+
+export const BoldIcon = (p: { size?: number }) => (
+  <Svg {...p}>
+    <path d="M6 4h6a4 4 0 0 1 0 8H6z" />
+    <path d="M6 12h7a4 4 0 0 1 0 8H6z" />
+  </Svg>
+);
+
+export const ItalicIcon = (p: { size?: number }) => (
+  <Svg {...p}>
+    <line x1="19" y1="4" x2="10" y2="4" />
+    <line x1="14" y1="20" x2="5" y2="20" />
+    <line x1="15" y1="4" x2="9" y2="20" />
+  </Svg>
+);
+
+export const UnderlineIcon = (p: { size?: number }) => (
+  <Svg {...p}>
+    <path d="M6 4v6a6 6 0 0 0 12 0V4" />
+    <line x1="4" y1="20" x2="20" y2="20" />
+  </Svg>
+);
+
+export const HighlighterIcon = (p: { size?: number }) => (
+  <Svg {...p}>
+    <rect x="3" y="14" width="6" height="6" rx="1" />
+    <path d="M8 14 18 4a2.83 2.83 0 0 1 4 4L12 18" />
+  </Svg>
+);
+
+export const BulletListIcon = (p: { size?: number }) => (
+  <Svg {...p}>
+    <circle cx="4" cy="6" r="1" />
+    <circle cx="4" cy="12" r="1" />
+    <circle cx="4" cy="18" r="1" />
+    <line x1="9" y1="6" x2="20" y2="6" />
+    <line x1="9" y1="12" x2="20" y2="12" />
+    <line x1="9" y1="18" x2="20" y2="18" />
+  </Svg>
+);
+
+export const OrderedListIcon = (p: { size?: number }) => (
+  <Svg {...p}>
+    <path d="M4 6h1v4" />
+    <path d="M4 10h2" />
+    <path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1" />
+    <line x1="10" y1="6" x2="21" y2="6" />
+    <line x1="10" y1="12" x2="21" y2="12" />
+    <line x1="10" y1="18" x2="21" y2="18" />
+  </Svg>
+);
+
+export const BlockquoteIcon = (p: { size?: number }) => (
+  <Svg {...p}>
+    <path d="M7 15c-1.5 0-2.5-1-2.5-2.5S5.5 10 7 10s2.5 1 2.5 2.5c0 2-1.5 4-3.5 4.5" />
+    <path d="M16 15c-1.5 0-2.5-1-2.5-2.5S14.5 10 16 10s2.5 1 2.5 2.5c0 2-1.5 4-3.5 4.5" />
+  </Svg>
+);
+
+export const StrikeIcon = (p: { size?: number }) => (
+  <Svg {...p}>
+    <path d="M16 4H9a3 3 0 0 0-2.83 4" />
+    <path d="M14 12a4 4 0 0 1 0 8H6" />
+    <line x1="4" y1="12" x2="20" y2="12" />
+  </Svg>
+);
+
+export const CodeIcon = (p: { size?: number }) => (
+  <Svg {...p}>
+    <polyline points="16 18 22 12 16 6" />
+    <polyline points="8 6 2 12 8 18" />
+  </Svg>
+);
+
+export const CodeBlockIcon = (p: { size?: number }) => (
+  <Svg {...p}>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="m9 9-2 3 2 3" />
+    <path d="m15 9 2 3-2 3" />
+  </Svg>
+);
+
+export const LinkIcon = (p: { size?: number }) => (
+  <Svg {...p}>
+    <path d="M9 17H7a5 5 0 0 1 0-10h2" />
+    <path d="M15 7h2a5 5 0 1 1 0 10h-2" />
+    <line x1="8" y1="12" x2="16" y2="12" />
+  </Svg>
+);
+
+export const HorizontalRuleIcon = (p: { size?: number }) => (
+  <Svg {...p}>
+    <line x1="3" y1="12" x2="21" y2="12" />
+  </Svg>
+);
+
+export const TaskListIcon = (p: { size?: number }) => (
+  <Svg {...p}>
+    <path d="m3 6 1.5 1.5L7 5" />
+    <path d="m3 13 1.5 1.5L7 12" />
+    <line x1="11" y1="6" x2="21" y2="6" />
+    <line x1="11" y1="13" x2="21" y2="13" />
+    <line x1="3" y1="19" x2="21" y2="19" />
+  </Svg>
+);
+
+export const SubscriptIcon = (p: { size?: number }) => (
+  <Svg {...p}>
+    <path d="m4 5 8 8" />
+    <path d="m12 5-8 8" />
+    <path d="M20 19h-4c0-1.5.44-2 1.5-2.5S20 15.33 20 14a2 2 0 0 0-3.5-1.34" />
+  </Svg>
+);
+
+export const SuperscriptIcon = (p: { size?: number }) => (
+  <Svg {...p}>
+    <path d="m4 19 8-8" />
+    <path d="m12 19-8-8" />
+    <path d="M20 9h-4c0-1.5.44-2 1.5-2.5S20 5.33 20 4a2 2 0 0 0-3.5-1.34" />
+  </Svg>
+);

@@ -4,6 +4,7 @@
    never raw hex. Light is default; [data-theme="dark"] flips the semantic layer.
    Palettes validated AA (see contrast note by --on-accent / --border-strong).
    ==========================================================================*/
+@import "tailwindcss";
 
 /* ----------------------------------------------------------------------------
    Layer 1 — PRIMITIVES (raw Koine Ink values; never used directly in components)
@@ -20,6 +21,21 @@
   --ink-l-accent-strong: #2e3c82; /* hover/pressed of accent */
   --ink-l-accent-rgb: 59 76 158;
 
+  /* Notes highlight palette — 7 hues evenly spaced (~51°) around the wheel
+     starting at the accent's own hue (~229°, indigo), so "Indigo" reads as
+     the accent color and the other 6 harmonize with it by construction
+     (same S/L, hue rotated). The raw --ink-l-accent itself is too dark to
+     use as a text-highlight fill (~2:1 against --ink-l-text), so these are
+     a lighter, more saturated tint of the same hues than the raw accent —
+     richer than a pastel wash, still legible. 5.9-11:1 against --ink-l-text. */
+  --ink-l-highlight-indigo: #8898dd;
+  --ink-l-highlight-violet: #c188dd;
+  --ink-l-highlight-rose: #dd88b0;
+  --ink-l-highlight-amber: #dda988;
+  --ink-l-highlight-lime: #c8dd88;
+  --ink-l-highlight-green: #88dd91;
+  --ink-l-highlight-teal: #88ddda;
+
   /* Dark palette (Bible Study App.md) */
   --ink-d-bg: #14161c;
   --ink-d-panel: #1b1e26;
@@ -30,6 +46,17 @@
   --ink-d-accent: #7c8fe0;
   --ink-d-accent-strong: #93a2e8; /* in dark, hover = lighter */
   --ink-d-accent-rgb: 124 143 224;
+
+  /* Same 7-hue family, deepened (same hue, lower L) so light text stays
+     readable on top — but not so deep it reads as near-black.
+     4.75-10.2:1 against --ink-d-text, all AA+ (most AAA). */
+  --ink-d-highlight-indigo: #1f2d6b;
+  --ink-d-highlight-violet: #511f6b;
+  --ink-d-highlight-rose: #6b1f42;
+  --ink-d-highlight-amber: #6b3c1f;
+  --ink-d-highlight-lime: #586b1f;
+  --ink-d-highlight-green: #1f6b27;
+  --ink-d-highlight-teal: #1f6b68;
 
   --ink-white: #ffffff;
 
@@ -108,6 +135,13 @@
   --accent-strong: var(--ink-l-accent-strong);
   --accent-rgb: var(--ink-l-accent-rgb);
   --on-accent: var(--ink-white); /* white on #3B4C9E = 7.7:1 AA */
+  --highlight-indigo: var(--ink-l-highlight-indigo);
+  --highlight-violet: var(--ink-l-highlight-violet);
+  --highlight-rose: var(--ink-l-highlight-rose);
+  --highlight-amber: var(--ink-l-highlight-amber);
+  --highlight-lime: var(--ink-l-highlight-lime);
+  --highlight-green: var(--ink-l-highlight-green);
+  --highlight-teal: var(--ink-l-highlight-teal);
 
   --scrim: rgb(20 22 28 / 0.35);
   --shadow-1: 0 1px 2px rgb(16 18 24 / 0.06);
@@ -129,6 +163,13 @@
   --on-accent: var(
     --ink-d-bg
   ); /* near-black on #7C8FE0 = ~5.7:1 (white would fail) */
+  --highlight-indigo: var(--ink-d-highlight-indigo);
+  --highlight-violet: var(--ink-d-highlight-violet);
+  --highlight-rose: var(--ink-d-highlight-rose);
+  --highlight-amber: var(--ink-d-highlight-amber);
+  --highlight-lime: var(--ink-d-highlight-lime);
+  --highlight-green: var(--ink-d-highlight-green);
+  --highlight-teal: var(--ink-d-highlight-teal);
 
   --scrim: rgb(0 0 0 / 0.5);
   --shadow-1: 0 1px 2px rgb(0 0 0 / 0.3);
@@ -142,6 +183,18 @@
   --accent-tint: rgb(var(--accent-rgb) / 0.1);
   --accent-tint-strong: rgb(var(--accent-rgb) / 0.16);
   --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+
+  /* Neutral fill for an unfocused-but-present surface (inactive dock tabs):
+     a step off --bg-panel toward --border-strong, so it reads as a filled
+     tab shape rather than blending into the tab strip's own background. */
+  --surface-muted: color-mix(
+    in srgb,
+    var(--bg-panel),
+    var(--border-strong) 18%
+  );
+
+  /* Same red in both themes — error/destructive states don't flip. */
+  --danger: #e11d48;
 }
 
 /* ----------------------------------------------------------------------------
@@ -192,6 +245,16 @@
   /* Selected/active state (active Reader, selected menu item) */
   --selected-bg: var(--accent-tint);
   --selected-fg: var(--accent);
+
+  /* Notes editor (Tiptap/ProseMirror) content surface */
+  --editor-heading-fg: var(--text);
+  --editor-muted-fg: var(--text-muted);
+  --editor-blockquote-border: var(--border-strong);
+  --editor-code-bg: var(--bg-panel);
+  --editor-code-border: var(--border);
+  --editor-hr-color: var(--border);
+  --editor-highlight-bg: var(--highlight-indigo);
+  --editor-selectednode-outline: var(--accent);
 }
 
 /* ----------------------------------------------------------------------------
@@ -209,11 +272,11 @@
 
   --dv-activegroup-visiblepanel-tab-background-color: var(--bg);
   --dv-activegroup-visiblepanel-tab-color: var(--text);
-  --dv-activegroup-hiddenpanel-tab-background-color: var(--bg-panel);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--surface-muted);
   --dv-activegroup-hiddenpanel-tab-color: var(--text-muted);
-  --dv-inactivegroup-visiblepanel-tab-background-color: var(--bg-panel);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--surface-muted);
   --dv-inactivegroup-visiblepanel-tab-color: var(--text-muted);
-  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--bg-panel);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--surface-muted);
   --dv-inactivegroup-hiddenpanel-tab-color: var(--text-muted);
 
   --dv-separator-border: var(--border);
@@ -236,10 +299,68 @@
   --dv-scrollbar-background-color: var(--bg-panel);
 }
 
+/* Kill the theme's built-in top border on tabs — it's colored from the
+   tab background var, which differs from the container background only
+   for the focused group's active tab, producing an inconsistent seam
+   above just that one tab. Same story for the tab strip's own
+   border-bottom: only the active group gets one, adding a seam between
+   the tab row and the panel header that the inactive group lacks. */
+.dock-host .dockview-theme-vs .dv-tab.dv-active-tab,
+.dock-host .dockview-theme-vs .dv-tab.dv-inactive-tab {
+  border-top: none;
+}
+.dock-host
+  .dockview-theme-vs
+  .dv-groupview.dv-active-group
+  > .dv-tabs-and-actions-container,
+.dock-host
+  .dockview-theme-vs
+  .dv-groupview.dv-inactive-group
+  > .dv-tabs-and-actions-container {
+  border-bottom: none;
+}
+
+/* Dockview's default tab padding (0.25rem top/bottom, 0.5rem left/right)
+   renders the label + close button sitting slightly above center in the
+   34px tab row — trim the top a touch to recenter them, and give the label
+   a bit more breathing room on the left than the stock 0.5rem. */
+.dock-host .dockview-theme-vs .dv-tab {
+  padding-top: 2px;
+  padding-left: var(--sp-3);
+}
+
+/* Dockview hides an inactive tab's close button until hover — keep it
+   visible but dimmed instead, so an unfocused tab still reads as closeable
+   without requiring a hover first. */
+.dock-host
+  .dockview-theme-vs
+  .dv-tab.dv-inactive-tab
+  .dv-default-tab
+  .dv-default-tab-action {
+  visibility: visible;
+  opacity: 0.5;
+}
+.dock-host
+  .dockview-theme-vs
+  .dv-tab.dv-inactive-tab
+  .dv-default-tab:hover
+  .dv-default-tab-action {
+  opacity: 1;
+}
+
 /* Accent underline on the active panel's active tab — signals the "active
    Reader" that global commands (Cmd-K, translation switch) target. */
 .dock-host .dockview-theme-vs .dv-active-group .dv-tab.dv-active-tab {
   box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+/* Tabs get a focus ring on click since they're focusable — dockview paints
+   it on a ::after pseudo-element with !important (dockview.css), so the
+   override has to target that box and match the !important. The accent
+   underline above already marks the active tab, so no ring is needed. */
+.dock-host .dockview-theme-vs .dv-tab:focus::after,
+.dock-host .dockview-theme-vs .dv-tab:focus-within::after {
+  outline: none !important;
 }
 
 /* Respect reduced-motion globally for dockview's own transitions. */
@@ -247,4 +368,30 @@
   .dock-host .dockview-theme-vs {
     --dv-transition-duration: 0ms;
   }
+}
+
+/* ----------------------------------------------------------------------------
+   Tailwind bridge — expose the semantic layer as Tailwind color utilities
+   (bg-panel, text-ink, border-strong, ...) and reuse --sp-1 as Tailwind's
+   spacing unit so the padding, gap, and margin utilities stay on the 4px
+   grid defined above. Anything without a named utility here (fonts, radii,
+   durations, one-off sizes) is referenced directly in components via
+   arbitrary values, e.g. rounded-[var(--radius-sm)] or
+   font-[family-name:var(--font-serif)].
+   --------------------------------------------------------------------------*/
+@theme {
+  --spacing: var(--sp-1);
+
+  --color-bg: var(--bg);
+  --color-panel: var(--bg-panel);
+  --color-ink: var(--text);
+  --color-muted: var(--text-muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-on-accent: var(--on-accent);
+  --color-accent-tint: var(--accent-tint);
+  --color-accent-tint-strong: var(--accent-tint-strong);
+  --color-danger: var(--danger);
 }

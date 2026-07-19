@@ -1,21 +1,110 @@
-// Notes — header (hamburger note list, search, tag/book filter) is real;
-// the editor body below is still a stub. Backed by sample Markdown-on-disk
-// notes with frontmatter (see notes/notes.ts) — no persistence/backend yet.
+// Notes — header (hamburger note list, search, tag/book filter) and the
+// editor (live type-to-transform Markdown, see notes/NotesEditor.tsx) are
+// real. Backed by sample Markdown-on-disk notes with frontmatter (see
+// notes/notes.ts) — no persistence/backend yet, edits don't save to disk.
 import { useMemo, useState } from "react";
-import { useWorkspace } from "../state/workspace";
+import { formatReference, useWorkspace } from "../state/workspace";
 import { Menu } from "../workspace/Menu";
 import { MenuIcon, MoreIcon } from "../workspace/icons";
+import { NotesColorMenu } from "./notes/NotesColorMenu";
 import { NotesDrawer } from "./notes/NotesDrawer";
+import { NotesEditor } from "./notes/NotesEditor";
 import { NotesFilterMenu } from "./notes/NotesFilterMenu";
 import { loadNotes, type Note } from "./notes/notes";
 
+function newNote(color: string | undefined): Note {
+  const now = new Date().toISOString();
+  return {
+    id: crypto.randomUUID(),
+    title: "",
+    tags: [],
+    anchors: [],
+    color,
+    created: now,
+    modified: now,
+    body: "",
+  };
+}
+
 export function NotesPanel() {
   const ws = useWorkspace();
-  const [notes] = useState<Note[]>(() => loadNotes());
+  const [notes, setNotes] = useState<Note[]>(() => loadNotes());
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [anchorDraft, setAnchorDraft] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [tagQuery, setTagQuery] = useState("");
   const [bookIds, setBookIds] = useState<Set<number>>(new Set());
+
+  const selectedNote = notes.find((n) => n.id === selectedId) ?? null;
+
+  function selectNote(id: string | null) {
+    setSelectedId(id);
+    setDrawerOpen(false);
+    setAnchorDraft(null);
+  }
+
+  function handleNewNote() {
+    const n = newNote(ws.notesLastColor);
+    setNotes((prev) => [n, ...prev]);
+    selectNote(n.id);
+  }
+
+  function confirmAnchor(value: string) {
+    const v = value.trim();
+    if (v && selectedNote) {
+      const id = selectedNote.id;
+      setNotes((prev) =>
+        prev.map((n) =>
+          n.id === id && !n.anchors.includes(v)
+            ? {
+                ...n,
+                anchors: [...n.anchors, v],
+                modified: new Date().toISOString(),
+              }
+            : n,
+        ),
+      );
+    }
+    setAnchorDraft(null);
+  }
+
+  function removeAnchor(anchor: string) {
+    if (!selectedNote) return;
+    const id = selectedNote.id;
+    setNotes((prev) =>
+      prev.map((n) =>
+        n.id === id
+          ? {
+              ...n,
+              anchors: n.anchors.filter((a) => a !== anchor),
+              modified: new Date().toISOString(),
+            }
+          : n,
+      ),
+    );
+  }
+
+  function updateTitle(title: string) {
+    if (!selectedNote) return;
+    const id = selectedNote.id;
+    setNotes((prev) =>
+      prev.map((n) =>
+        n.id === id ? { ...n, title, modified: new Date().toISOString() } : n,
+      ),
+    );
+  }
+
+  function updateColor(color: string | undefined) {
+    if (!selectedNote) return;
+    const id = selectedNote.id;
+    setNotes((prev) =>
+      prev.map((n) =>
+        n.id === id ? { ...n, color, modified: new Date().toISOString() } : n,
+      ),
+    );
+    ws.setNotesLastColor(color);
+  }
 
   function toggleBook(id: number) {
     setBookIds((prev) => {
@@ -55,8 +144,8 @@ export function NotesPanel() {
   }, [notes, query, tagQuery, bookIds, ws.books]);
 
   return (
-    <div className="panel notes">
-      <div className="notes__bar reader__bar">
+    <div className="panel">
+      <div className="reader__bar">
         <button
           className={"iconbtn" + (drawerOpen ? " is-active" : "")}
           title="Notes list"
@@ -67,7 +156,7 @@ export function NotesPanel() {
           <MenuIcon size={16} />
         </button>
         <input
-          className="input notes__search"
+          className="input w-[200px]"
           value={query}
           placeholder="Search notes…"
           onChange={(e) => setQuery(e.target.value)}
@@ -79,35 +168,54 @@ export function NotesPanel() {
           selectedBookIds={bookIds}
           onToggleBook={toggleBook}
         />
-        <div className="notes__actions">
+        <div className="flex items-center gap-2 ml-auto">
+          {selectedNote && (
+            <NotesColorMenu color={selectedNote.color} onChange={updateColor} />
+          )}
           <Menu
             triggerClassName="iconbtn"
             title="More"
             align="right"
-            items={[{ label: "New note", disabled: true, onSelect: () => {} }]}
+            items={[
+              { label: "New note", onSelect: handleNewNote },
+              {
+                label: "Add anchor",
+                disabled: !selectedNote,
+                onSelect: () =>
+                  setAnchorDraft(
+                    ws.activeReference
+                      ? formatReference(ws.activeReference, ws.bookName)
+                      : "",
+                  ),
+              },
+            ]}
           >
             <MoreIcon size={16} />
           </Menu>
         </div>
       </div>
 
-      <div className="notes__body">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         <NotesDrawer
           open={drawerOpen}
           notes={filtered}
-          onSelect={() => setDrawerOpen(false)}
+          onSelect={(note) => selectNote(note.id)}
         />
 
-        <div className="notes__pad">
-          <p className="panel__muted">
-            Notes are Markdown files on disk with multi-anchor verse links. The
-            editor lands in a later pass — this pane is a placeholder.
-          </p>
-          <textarea
-            className="notes__editor"
-            spellCheck={false}
-            placeholder={"# Note\n\nWrite freely…"}
-          />
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          {selectedNote ? (
+            <NotesEditor
+              key={selectedNote.id}
+              note={selectedNote}
+              onRemoveAnchor={removeAnchor}
+              anchorDraft={anchorDraft}
+              onConfirmAnchor={confirmAnchor}
+              onCancelAnchor={() => setAnchorDraft(null)}
+              onTitleChange={updateTitle}
+            />
+          ) : (
+            <p className="panel__muted p-4">Select a note to start writing.</p>
+          )}
         </div>
       </div>
     </div>

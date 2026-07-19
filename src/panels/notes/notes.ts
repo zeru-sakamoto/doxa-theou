@@ -6,9 +6,45 @@ export interface Note {
   title: string;
   tags: string[];
   anchors: string[];
+  color?: string;
   created: string;
   modified: string;
   body: string;
+}
+
+// Notes highlight palette: 7 hues evenly spaced around the accent's own hue
+// (indigo, the primary), so every alternative harmonizes with it by
+// construction. Values are CSS vars, not hex, so a saved selection stays
+// legible when the user flips light/dark (see tokens.css). Shared by
+// SettingsPanel's default highlight picker and NotesColorMenu's per-note
+// color picker.
+export const NOTES_HIGHLIGHT_SWATCHES = [
+  { name: "Indigo", var: "--highlight-indigo" },
+  { name: "Violet", var: "--highlight-violet" },
+  { name: "Rose", var: "--highlight-rose" },
+  { name: "Amber", var: "--highlight-amber" },
+  { name: "Lime", var: "--highlight-lime" },
+  { name: "Green", var: "--highlight-green" },
+  { name: "Teal", var: "--highlight-teal" },
+];
+
+// ponytail: crude line-prefix strip instead of a Markdown parser — this is
+// only ever shown as a truncated list-card preview, never rendered as HTML.
+function stripMarkdown(text: string): string {
+  return text
+    .split("\n")
+    .map((l) => l.replace(/^\s*(#{1,6}|[-*+>]|`{1,3})\s*/, ""))
+    .join(" ")
+    .replace(/[*_`]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function notePreview(note: Note): string {
+  const title = note.title.trim();
+  if (title) return title;
+  const preview = stripMarkdown(note.body);
+  return preview.length > 80 ? preview.slice(0, 80) + "…" : preview;
 }
 
 function parseValue(raw: string): string | string[] {
@@ -40,6 +76,7 @@ export function parseNote(raw: string): Note {
     title: data.title as string,
     tags: (data.tags as string[]) ?? [],
     anchors: (data.anchors as string[]) ?? [],
+    color: data.color as string | undefined,
     created: data.created as string,
     modified: data.modified as string,
     body: body.trim(),

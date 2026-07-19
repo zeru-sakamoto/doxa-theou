@@ -15,20 +15,22 @@ export function StatusBar() {
   const status = ws.loadError ? "DB error" : ws.ready ? "Ready" : "Loading…";
 
   return (
-    <footer className="statusbar">
-      <span className="statusbar__item statusbar__ref">
+    <footer className="flex items-center gap-2 h-(--statusbar-height) px-3 bg-panel text-muted border-t border-border text-(length:--text-2xs) select-none">
+      <span className="whitespace-nowrap font-(family-name:--font-mono) text-ink">
         {formatReference(ws.activeReference, ws.bookName)}
       </span>
-      <span className="statusbar__sep">·</span>
-      <span className="statusbar__item">
+      <span className="opacity-50">·</span>
+      <span className="whitespace-nowrap">
         {ws.activeReference ? ws.activeTranslation : "—"}
       </span>
-      <span className="statusbar__sep">·</span>
-      <span className={"statusbar__item" + (ws.loadError ? " is-error" : "")}>
+      <span className="opacity-50">·</span>
+      <span
+        className={"whitespace-nowrap" + (ws.loadError ? " text-danger" : "")}
+      >
         {status}
       </span>
-      <span className="statusbar__spacer" />
-      <time className="statusbar__item statusbar__clock">
+      <span className="flex-1" />
+      <time className="whitespace-nowrap font-(family-name:--font-mono) tabular-nums">
         {now.toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit",

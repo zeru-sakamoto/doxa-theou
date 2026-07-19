@@ -51,16 +51,16 @@ export function SearchPanel() {
   }
 
   return (
-    <div className="panel search">
+    <div className="panel">
       <form
-        className="search__form"
+        className="py-2 px-3 border-b border-border shrink-0"
         onSubmit={(e) => {
           e.preventDefault();
           run(query);
         }}
       >
         <input
-          className="input search__input"
+          className="input w-full"
           value={query}
           placeholder="Search scripture…"
           onChange={(e) => setQuery(e.target.value)}
@@ -79,14 +79,16 @@ export function SearchPanel() {
                 hits.map((h) => (
                   <button
                     key={`${h.verse_ref_id}-${h.translation}`}
-                    className="hit"
+                    className="flex flex-col gap-0.5 w-full p-2 mb-0.5 border-0 border-l-2 border-l-transparent rounded-(--radius-sm) bg-transparent text-left hover:bg-accent-tint hover:border-l-accent"
                     onClick={() => goto(h)}
                   >
-                    <span className="hit__ref">
+                    <span className="font-(family-name:--font-mono) text-(length:--text-xs) text-accent">
                       {ws.bookAbbr(h.book_id)} {h.chapter}:{h.verse} ·{" "}
                       {h.translation}
                     </span>
-                    <span className="hit__text">{h.text}</span>
+                    <span className="font-(family-name:--font-serif) text-(length:--text-base) text-ink">
+                      {h.text}
+                    </span>
                   </button>
                 ))
               )}
@@ -116,11 +118,14 @@ function Group({
   children: ReactNode;
 }) {
   return (
-    <section className="sgroup">
-      <h3 className="sgroup__head">
-        {label} <span className="sgroup__count">{count}</span>
+    <section className="[&+&]:mt-4">
+      <h3 className="flex items-center gap-2 mb-2 font-(family-name:--font-mono) text-(length:--text-2xs) uppercase tracking-[0.08em] text-muted">
+        {label}{" "}
+        <span className="px-1.5 rounded-full bg-panel border border-border">
+          {count}
+        </span>
       </h3>
-      <div className="sgroup__body">{children}</div>
+      <div>{children}</div>
     </section>
   );
 }

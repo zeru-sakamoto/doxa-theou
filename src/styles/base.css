@@ -1,11 +1,7 @@
 /* Global base — applies Koine Ink tokens to elements. No page scroll: the app
-   is a fixed workspace shell (header / dock / status bar). */
-
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
+   is a fixed workspace shell (header / dock / status bar). box-sizing reset,
+   list-style, and form-control resets already come from Tailwind's preflight
+   (loaded via tokens.css's @import "tailwindcss"). */
 
 html,
 body,

@@ -1,4 +1,4 @@
-// Main header = custom window bar. Left: Δόξα Θεοῦ wordmark. Then global search
+// Main header = custom window bar. Left: Doxa Theou wordmark. Then global search
 // + Layout menu. Right cluster (order per spec): Bible reader ▾ · Notes ·
 // Settings · window controls (min / max-restore / close).
 import { useEffect, useState, type FormEvent } from "react";
@@ -85,20 +85,38 @@ export function Header() {
     { label: "Reset layout", danger: true, onSelect: () => dock.resetLayout() },
   ];
 
+  const hbtn =
+    "inline-flex items-center gap-1.5 h-7 px-2 rounded-(--radius-sm) bg-transparent text-ink text-(length:--text-sm) whitespace-nowrap transition-colors duration-(--dur-fast) ease-(--ease-standard) hover:bg-accent-tint active:bg-accent-tint-strong";
+  const hbtnLabel = "max-[1024px]:hidden";
+  const wbtn =
+    "inline-flex items-center justify-center w-11 border-0 bg-transparent text-muted transition-colors duration-(--dur-fast) ease-(--ease-standard) hover:bg-accent-tint hover:text-ink";
+
   return (
-    <header className="header" data-tauri-drag-region>
-      <div className="header__brand" data-tauri-drag-region>
-        <span className="brand" data-tauri-drag-region>
-          Δόξα&nbsp;Θεοῦ
+    <header
+      className="flex items-center gap-2 h-(--header-height) pl-3 bg-panel text-ink border-b border-border select-none"
+      data-tauri-drag-region
+    >
+      <div className="flex items-center pr-2" data-tauri-drag-region>
+        <span
+          className="font-(family-name:--font-serif) text-(length:--text-lg) font-semibold tracking-[0.01em] whitespace-nowrap"
+          data-tauri-drag-region
+        >
+          Doxa&nbsp;Theou
         </span>
       </div>
 
-      <form className="header__search" onSubmit={submitSearch}>
-        <span className="header__searchicon" aria-hidden="true">
+      <form
+        className="relative flex items-center grow-0 basis-[320px] max-[1024px]:basis-[220px]"
+        onSubmit={submitSearch}
+      >
+        <span
+          className="absolute left-2 flex text-muted pointer-events-none"
+          aria-hidden="true"
+        >
           <SearchIcon size={15} />
         </span>
         <input
-          className="input header__searchinput"
+          className="input w-full pl-[28px]!"
           placeholder="Search scripture…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -107,48 +125,48 @@ export function Header() {
       </form>
 
       <Menu
-        triggerClassName="hbtn"
+        triggerClassName={hbtn}
         title="Layout"
         align="left"
         items={layoutItems}
       >
         <LayoutIcon size={16} />
-        <span className="hbtn__label">Layout</span>
+        <span className={hbtnLabel}>Layout</span>
       </Menu>
 
-      <div className="header__spacer" data-tauri-drag-region />
+      <div className="flex-1 self-stretch" data-tauri-drag-region />
 
-      <div className="header__actions">
+      <div className="flex items-center gap-[2px] h-full">
         <Menu
-          triggerClassName="hbtn"
+          triggerClassName={hbtn}
           title="Open a Bible reader"
           align="right"
           items={readerItems}
         >
           <BookIcon size={16} />
-          <span className="hbtn__label">Bible reader</span>
+          <span className={hbtnLabel}>Bible reader</span>
           <ChevronDownIcon size={13} />
         </Menu>
         <button
-          className="hbtn"
+          className={hbtn}
           onClick={() => dock.openSingleton("notes")}
           title="Notes"
         >
           <NotesIcon size={16} />
-          <span className="hbtn__label">Notes</span>
+          <span className={hbtnLabel}>Notes</span>
         </button>
         <button
-          className="hbtn"
+          className={hbtn}
           onClick={() => dock.openSingleton("settings")}
           title="Settings"
         >
           <SettingsIcon size={16} />
-          <span className="hbtn__label">Settings</span>
+          <span className={hbtnLabel}>Settings</span>
         </button>
 
-        <div className="wctl">
+        <div className="flex items-stretch h-full ml-1">
           <button
-            className="wbtn"
+            className={wbtn}
             onClick={() => win("minimize")}
             title="Minimize"
             aria-label="Minimize"
@@ -156,7 +174,7 @@ export function Header() {
             <MinimizeIcon size={15} />
           </button>
           <button
-            className="wbtn"
+            className={wbtn}
             onClick={() => win("toggleMaximize")}
             title={maximized ? "Restore" : "Maximize"}
             aria-label={maximized ? "Restore" : "Maximize"}
@@ -164,7 +182,7 @@ export function Header() {
             {maximized ? <RestoreIcon size={14} /> : <MaximizeIcon size={14} />}
           </button>
           <button
-            className="wbtn wbtn--close"
+            className="inline-flex items-center justify-center w-11 border-0 bg-transparent text-muted transition-colors duration-(--dur-fast) ease-(--ease-standard) hover:bg-danger hover:text-white"
             onClick={() => win("close")}
             title="Close"
             aria-label="Close"

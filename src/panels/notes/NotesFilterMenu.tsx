@@ -59,14 +59,14 @@ export function NotesFilterMenu({
       <AnimatePresence>
         {open && (
           <motion.div
-            className="menu__list menu__list--right filterpopover"
+            className="menu__list menu__list--right flex flex-col gap-2 w-[260px] p-2"
             initial={reduce ? { opacity: 0 } : { opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={reduce ? { opacity: 0 } : { opacity: 0, y: -4 }}
             transition={{ duration: 0.12 }}
           >
             <div
-              className="seg filterpopover__seg"
+              className="seg self-start"
               role="group"
               aria-label="Filter mode"
             >
@@ -87,14 +87,14 @@ export function NotesFilterMenu({
             </div>
             {mode === "tags" ? (
               <input
-                className="input filterpopover__taginput"
+                className="input w-full"
                 value={tagQuery}
                 placeholder="Filter by tag…"
                 onChange={(e) => onTagQueryChange(e.target.value)}
                 autoFocus
               />
             ) : (
-              <div className="filterpopover__books">
+              <div className="max-h-[260px] overflow-auto">
                 {(
                   [
                     [
@@ -107,22 +107,29 @@ export function NotesFilterMenu({
                     ],
                   ] as Array<[string, Book[]]>
                 ).map(([label, list]) => (
-                  <section key={label} className="filterpopover__group">
-                    <h4 className="filterpopover__grouphead">{label}</h4>
-                    <div className="filterpopover__bookgrid">
-                      {list.map((b) => (
-                        <button
-                          key={b.id}
-                          type="button"
-                          className={
-                            "filterchip" +
-                            (selectedBookIds.has(b.id) ? " is-active" : "")
-                          }
-                          onClick={() => onToggleBook(b.id)}
-                        >
-                          {b.abbr}
-                        </button>
-                      ))}
+                  <section key={label} className="[&+&]:mt-3">
+                    <h4 className="mb-1 font-(family-name:--font-mono) text-(length:--text-2xs) uppercase tracking-[0.08em] text-muted">
+                      {label}
+                    </h4>
+                    <div className="grid grid-cols-3 gap-1">
+                      {list.map((b) => {
+                        const active = selectedBookIds.has(b.id);
+                        return (
+                          <button
+                            key={b.id}
+                            type="button"
+                            className={
+                              "py-[3px] px-2 border rounded-(--radius-sm) font-(family-name:--font-mono) text-(length:--text-xs)" +
+                              (active
+                                ? " bg-accent border-accent text-on-accent"
+                                : " bg-transparent border-border text-muted hover:border-accent hover:text-accent hover:bg-accent-tint")
+                            }
+                            onClick={() => onToggleBook(b.id)}
+                          >
+                            {b.abbr}
+                          </button>
+                        );
+                      })}
                     </div>
                   </section>
                 ))}

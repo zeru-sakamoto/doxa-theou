@@ -34,6 +34,10 @@ doxa-theou is a Bible Study App, built as a desktop app with Tauri 2 (Rust backe
 - `docs/` — project documentation.
 - `site-content/` — content for a companion website/marketing site (separate from the app itself).
 
+### Dev server hygiene
+
+`npm run tauri dev` / `npm run dev` are long-running processes, not one-shot commands — never launch either in the background just to "check it compiles"; use `npm run build` / `cargo check` for that instead. Because Vite's port is `strictPort: true`, a second instance never silently shares port 1420 — it fails loudly with `Port 1420 is already in use`, which almost always means a dev server (yours from an earlier step, or the user's own) is already running; check with `netstat -ano | grep :1420` (or `tasklist //FI "IMAGENAME eq node.exe"`) before assuming you need to start one. If you do start one in the background for a specific reason, stop that process yourself once you're done with it — don't leave it dangling for the user to notice and ask about. Never kill a dev server you didn't start (e.g. one already bound to 1420 before your first command) without confirming with the user first — it may be their active session.
+
 The frontend and Rust backend are two separate build systems (Vite/tsc for TS, Cargo for Rust) orchestrated together by the Tauri CLI; when adding a native capability, expose it as a `#[tauri::command]` in `lib.rs` and call it from React via `invoke()`.
 
 ## UI / Design workflow

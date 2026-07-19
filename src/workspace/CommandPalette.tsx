@@ -17,7 +17,7 @@ function scoreBook(qn: string, b: Book): number {
   return 0;
 }
 
-function parseQuery(raw: string, books: Book[]) {
+export function parseQuery(raw: string, books: Book[]) {
   const s = raw.trim();
   let bookText = s;
   let chapter = 1;
@@ -83,7 +83,7 @@ export function CommandPalette() {
     <AnimatePresence>
       {open && (
         <motion.div
-          className="palette"
+          className="fixed inset-0 flex justify-center items-start pt-[12vh] bg-(--scrim) z-(--z-palette)"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -91,7 +91,7 @@ export function CommandPalette() {
           onMouseDown={() => setOpen(false)}
         >
           <motion.div
-            className="palette__box"
+            className="w-[min(560px,92vw)] bg-panel border border-border-strong rounded-(--radius-md) shadow-(--shadow-2) overflow-hidden"
             onMouseDown={(e) => e.stopPropagation()}
             initial={
               reduce ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.98 }
@@ -108,32 +108,41 @@ export function CommandPalette() {
             >
               <input
                 ref={inputRef}
-                className="palette__input"
+                className="w-full px-4 py-3 border-0 border-b border-border bg-transparent text-ink text-(length:--text-lg) focus-visible:outline-none"
                 value={q}
                 placeholder="Go to reference — e.g. John 3:16"
                 onChange={(e) => setQ(e.target.value)}
               />
             </form>
-            <ul className="palette__list">
+            <ul className="p-1 max-h-[300px] overflow-auto">
               {candidates.map((b, i) => (
                 <li key={b.id}>
                   <button
-                    className={"palette__item" + (i === 0 ? " is-active" : "")}
+                    className={
+                      "flex items-center justify-between w-full px-3 py-2 border-0 rounded-(--radius-sm) bg-transparent text-left" +
+                      (i === 0 ? " bg-accent-tint" : " hover:bg-accent-tint")
+                    }
                     onClick={() => commit(b)}
                   >
-                    <span className="palette__ref">
+                    <span className="font-(family-name:--font-mono) text-(length:--text-base) text-ink">
                       {b.name} {chapter}
                       {verse ? `:${verse}` : ""}
                     </span>
-                    {i === 0 && <span className="palette__hint">Enter</span>}
+                    {i === 0 && (
+                      <span className="font-(family-name:--font-mono) text-(length:--text-2xs) text-muted px-1.5 py-px border border-border rounded-(--radius-xs)">
+                        Enter
+                      </span>
+                    )}
                   </button>
                 </li>
               ))}
               {q.trim() && candidates.length === 0 && (
-                <li className="palette__empty">No matching book.</li>
+                <li className="p-3 text-muted text-(length:--text-sm)">
+                  No matching book.
+                </li>
               )}
               {!q.trim() && (
-                <li className="palette__empty">
+                <li className="p-3 text-muted text-(length:--text-sm)">
                   Type a book, chapter, and optional verse.
                 </li>
               )}

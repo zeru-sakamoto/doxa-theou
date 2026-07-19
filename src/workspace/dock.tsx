@@ -4,6 +4,8 @@
 // the center.
 import {
   createContext,
+  lazy,
+  Suspense,
   useCallback,
   useContext,
   useMemo,
@@ -20,10 +22,31 @@ import {
   type ReactContextMenuItemConfig,
 } from "dockview-react";
 import { ReaderPanel, type ReaderParams } from "../panels/ReaderPanel";
-import { NotesPanel } from "../panels/NotesPanel";
-import { SearchPanel } from "../panels/SearchPanel";
-import { SettingsPanel } from "../panels/SettingsPanel";
 import { formatReference, useWorkspace } from "../state/workspace";
+
+// Reader opens by default on every launch, so it's imported eagerly above.
+// Notes/Search/Settings are opened on demand — lazy so their code (notably
+// Notes' whole Tiptap editor stack, the single biggest contributor to bundle
+// size) only loads the first time each panel is actually opened.
+const NotesPanel = lazy(() =>
+  import("../panels/NotesPanel").then((m) => ({ default: m.NotesPanel })),
+);
+const SearchPanel = lazy(() =>
+  import("../panels/SearchPanel").then((m) => ({ default: m.SearchPanel })),
+);
+const SettingsPanel = lazy(() =>
+  import("../panels/SettingsPanel").then((m) => ({
+    default: m.SettingsPanel,
+  })),
+);
+
+function PanelFallback() {
+  return (
+    <div className="panel">
+      <p className="panel__muted p-4">Loading…</p>
+    </div>
+  );
+}
 
 const LAYOUT_KEY = "doxa-layout";
 type Singleton = "notes" | "search" | "settings";
@@ -37,9 +60,21 @@ const components = {
   reader: (props: IDockviewPanelProps) => (
     <ReaderPanel {...(props as IDockviewPanelProps<ReaderParams>)} />
   ),
-  notes: () => <NotesPanel />,
-  search: () => <SearchPanel />,
-  settings: () => <SettingsPanel />,
+  notes: () => (
+    <Suspense fallback={<PanelFallback />}>
+      <NotesPanel />
+    </Suspense>
+  ),
+  search: () => (
+    <Suspense fallback={<PanelFallback />}>
+      <SearchPanel />
+    </Suspense>
+  ),
+  settings: () => (
+    <Suspense fallback={<PanelFallback />}>
+      <SettingsPanel />
+    </Suspense>
+  ),
 };
 
 interface DockCtx {
@@ -203,7 +238,7 @@ export function Dockview() {
   );
 
   return (
-    <div className="dock-host">
+    <div className="dock-host flex min-h-0">
       <DockviewReact
         components={components}
         theme={themeVisualStudio}

@@ -49,6 +49,21 @@ the standing convention for this project (also noted in `CLAUDE.md`):
 State is a plain React context (`src/state/workspace.tsx`) — no store library
 until it measurably needs one.
 
+### Bundle: lazy-loaded panels
+
+Reader opens by default on every launch, so it's imported eagerly. Notes,
+Search, and Settings are `React.lazy()` in `dock.tsx`'s `components` map
+(each wrapped in its own `<Suspense fallback={<PanelFallback/>}>`) — they
+only load the first time a user actually opens them. This matters most for
+Notes: its editor pulls in the entire Tiptap stack (`@tiptap/*` + `prosemirror`),
+by far the single biggest dependency in the app. `dockview-react` and `motion`
+are used by the always-visible shell (dock host, menus, drawers) and can't be
+deferred the same way, so `vite.config.ts` instead splits them into their own
+`manualChunks` (`vendor-dockview`, `vendor-motion`) purely to keep every
+built chunk under Vite's 500 kB warning threshold. New panel types should
+follow the same lazy pattern (see §9) unless they need to be present at
+startup like Reader.
+
 ---
 
 ## 3. Design tokens (`src/styles/tokens.css`)
@@ -95,23 +110,28 @@ src/
     tokens.css             three-layer tokens + dockview bridge (design source of truth)
     base.css               element resets, fonts, scrollbars, focus
     shell.css              all component classes
+    notes-editor.css       Tiptap/ProseMirror content typography (plain descendant selectors)
   workspace/
     WorkspaceShell.tsx     top-level grid: header / dock / status bar
     Header.tsx             custom window bar + global controls
     StatusBar.tsx          reference · translation · status · live clock
-    CommandPalette.tsx     ⌘K go-to-reference
-    dock.tsx               dockview wrapper, panel registry, DockProvider/useDock, tab context menu
+    CommandPalette.tsx     ⌘K go-to-reference — also exports parseQuery(), reused by the anchor composer
+    dock.tsx               dockview wrapper, panel registry (Notes/Search/Settings lazy), DockProvider/useDock, tab context menu
     Menu.tsx               reusable dropdown menu
     icons.tsx              inline SVG icon set
   panels/
     ReaderPanel.tsx        scripture reader (one translation per panel)
     reader/TocDrawer.tsx   in-panel book/chapter navigator
-    NotesPanel.tsx         header (list/search/filter) + stub editor body
-    notes/NotesDrawer.tsx  in-panel note-list drawer (cards: title, tags, preview)
+    NotesPanel.tsx         header (list/search/filter/color/⋯) + editor host
+    notes/NotesDrawer.tsx  in-panel note-list drawer (cards: color dot, title-or-preview, tags, anchors)
     notes/NotesFilterMenu.tsx  tag (text) / book (multi-select) filter popover
-    notes/notes.ts         sample-notes loader + frontmatter parser
+    notes/NotesColorMenu.tsx   per-note color swatch picker (header, left of ⋯)
+    notes/NotesEditor.tsx      Tiptap editor host: toolbar, anchor bar, title input, content
+    notes/NotesEditorToolbar.tsx  formatting toolbar, wraps by button-group when narrow
+    notes/NotesAnchorBar.tsx   verse-anchor rows + composer (autocomplete, keyboard nav, chapter/verse validation)
+    notes/notes.ts         sample-notes loader/parser, shared highlight palette, notePreview()
     SearchPanel.tsx        Verses + Notes result groups
-    SettingsPanel.tsx      theme toggle, default translation, highlight placeholder
+    SettingsPanel.tsx      theme toggle, default translation, highlight palette, notes folder
 ```
 
 ---
@@ -156,12 +176,12 @@ via `DockviewReact`'s `getTabContextMenuItems`.
 
 Registered in `dock.tsx` under a `components` map (`id → component`).
 
-| Panel        | Wired to backend            | Notes                                                                                                         |
-| ------------ | --------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| **Reader**   | `get_chapter`, `list_books` | One translation, chosen at open time ("version-dedicated").                                                   |
-| **Search**   | `search` (FTS5 / bm25)      | Verses + Notes groups; Notes search is a placeholder.                                                         |
-| **Notes**    | —                           | Header (list/search/filter) is real, over sample Markdown+frontmatter notes; editor is still a stub textarea. |
-| **Settings** | `list_translations`         | Theme toggle, default translation, highlight swatches.                                                        |
+| Panel        | Wired to backend            | Notes                                                                                                                                 |
+| ------------ | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| **Reader**   | `get_chapter`, `list_books` | One translation, chosen at open time ("version-dedicated").                                                                           |
+| **Search**   | `search` (FTS5 / bm25)      | Verses + Notes groups; Notes search is a placeholder.                                                                                 |
+| **Notes**    | `get_chapter`, `list_books` | Header, list, and a real Tiptap editor (toolbar, anchors, optional title) over sample Markdown+frontmatter notes; no persistence yet. |
+| **Settings** | `list_translations`         | Theme toggle, default translation, shared highlight palette, notes folder picker.                                                     |
 
 **Reader.** Header carries the **TOC toggle**, current reference, and the bound
 version. The body renders verses (Newsreader) with mono, accent verse numbers.
@@ -176,25 +196,50 @@ Chapter counts come from a fixed canonical table in `api.ts` (no backend query).
 **Notes.** Header, left → right: a hamburger toggles the note-list sidebar
 (shows an active/accent state while open), a fixed-width search field filters
 that list live (title/tags/body, substring match), a filter icon sits right
-beside it opening a Tags/Books popover, and — pinned to the far right of the
-bar — a separate "⋯" menu (`New note`, disabled for now; note creation isn't
-built yet). The filter popover's Tags mode is one free-text input; Books mode
-is a 3-column grid of book-abbreviation toggle buttons grouped under "Old
+beside it opening a Tags/Books popover, then — pinned to the far right of the
+bar — a per-note **color swatch** (`notes/NotesColorMenu.tsx`, only shown
+once a note is selected) and the "⋯" menu (`New note`, `Add anchor`). The
+filter popover's Tags mode is one free-text input; Books mode is a 3-column
+grid of book-abbreviation toggle buttons grouped under "Old
 Testament"/"New Testament" headers (same `book.testament` split
 `reader/TocDrawer.tsx` uses).
 
 Notes come from `notes/notes.ts`, which parses a handful of sample `.md`
 files (`notes/sample/*.md`) with YAML-ish frontmatter (`id`, `title`, `tags`,
-`anchors`, `created`, `modified`) via a small hand-rolled parser — no backend
-or persistence yet, matching the future Markdown-on-disk design in
+`anchors`, `color`, `created`, `modified`) via a small hand-rolled parser —
+no backend or persistence yet, matching the future Markdown-on-disk design in
 `Bible Study App.md`. Unlike the Reader's TOC drawer, the note-list sidebar
 (`notes/NotesDrawer.tsx`) isn't an overlay — it's a collapsible flex column
-that animates width and pushes `.notes__pad` over rather than floating on
-top with a scrim, so it never covers the header. Each card shows title, tag
-pills, and the note's anchors joined as a preview line (`John 3:16 · Rom
-8:28`). Selecting a card just closes the sidebar for now — wiring a note
-into the editor body is future work. The editor textarea itself is
-borderless (no card/box chrome), matching the rest of the pane.
+that animates width and pushes the editor over rather than floating on top
+with a scrim, so it never covers the header. Each card shows an optional
+color dot, the title (or, if the note has none, a Markdown-stripped preview
+of the body via `notes/notes.ts`'s `notePreview()`), tag pills, and the
+note's anchors joined as a preview line (`John 3:16 · Rom 8:28`).
+
+**Note editor** (`notes/NotesEditor.tsx`), mounted once a card is selected:
+
+- **Toolbar** (`NotesEditorToolbar.tsx`) — a Tiptap `useEditor` instance
+  (StarterKit + Highlight/Placeholder/TaskList/Subscript/Superscript +
+  `@tiptap/markdown` for Markdown-in/out) drives block type, marks, lists,
+  code, and link buttons. Buttons are grouped by divider; the bar wraps by
+  whole group (never mid-cluster) when the panel narrows, e.g. with the note
+  list open.
+- **Anchor bar** (`NotesAnchorBar.tsx`) — existing anchors render as
+  clickable rows with a live passage preview (fetched via `get_chapter`) that
+  jump the active Reader. Composing a new anchor (`Add anchor`) gets a
+  book/chapter/verse **autocomplete + validation** combobox: book-name
+  suggestions reuse `CommandPalette`'s exported `parseQuery()`; once a book
+  is resolved, chapter suggestions are bounded by `api.ts`'s `chapterCount()`
+  and verse suggestions by a live `get_chapter()` fetch for the typed
+  chapter. Arrow keys move the highlight, Tab accepts the first suggestion,
+  and an out-of-range chapter/verse (or an end-verse below the start) blocks
+  confirm with an inline error.
+- **Title input** — optional; an empty title falls back to the body preview
+  in the list card (see `notePreview()` above).
+- **Color** — `NotesColorMenu.tsx` picks from the same 7-hue palette as
+  Settings' default highlight color (now exported as
+  `notes/notes.ts`'s `NOTES_HIGHLIGHT_SWATCHES`, shared by both). Picking a
+  color updates `ws.notesLastColor` (persisted), which new notes default to.
 
 ---
 
@@ -239,7 +284,11 @@ paint to avoid a flash.
 
 1. Create `src/panels/MyPanel.tsx` (a component; use `IDockviewPanelProps` if it
    needs the panel `api`/`params`).
-2. Register it in `dock.tsx`'s `components` map (`mypanel: () => <MyPanel/>`).
+2. Register it in `dock.tsx`'s `components` map. Unless it must be present at
+   startup like Reader, lazy-load it the same way Notes/Search/Settings are
+   (`const MyPanel = lazy(() => import("../panels/MyPanel").then(m => ({ default: m.MyPanel })))`,
+   rendered as `() => <Suspense fallback={<PanelFallback/>}><MyPanel/></Suspense>`)
+   — see §2's "Bundle: lazy-loaded panels".
 3. To open it from the header, add a `dock.openSingleton("mypanel")` button (or
    `dock.openReader`-style opener for multi-instance panels), and add its title
    to `TITLES`.
@@ -255,9 +304,10 @@ small addition once cross-ref data is sourced (its DB table is currently empty).
 
 Marked with `ponytail:` comments in-code, each with an upgrade path:
 
-- **Notes** editor is a visual stub; the header/list/filter are real but read
-  from a handful of sample `.md` files bundled with the app, not a real
-  notes store (file-watcher + SQLite index comes later).
+- **Notes** editor, list, and filters are all real, but still read/write a
+  handful of sample `.md` files loaded once into memory, not a real notes
+  store — edits don't persist to disk yet (file-watcher + SQLite index comes
+  later).
 - **Chapter counts** are the fixed 66-book canon in `api.ts` — no backend query.
 - **State** is React context, not a store library.
 - Tab right-click **Copy reference** always copies the globally active
