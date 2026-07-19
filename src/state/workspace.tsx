@@ -18,6 +18,7 @@ import {
   listBooks,
   listTranslations,
 } from "../api";
+import type { PaletteId } from "../panels/notes/notes";
 
 export type Theme = "light" | "dark";
 export interface Reference {
@@ -37,6 +38,7 @@ interface WorkspaceCtx {
   ready: boolean;
   loadError: string | null;
   defaultTranslation: string;
+  setDefaultTranslation: (code: string) => void;
   activeTranslation: string;
   setActiveTranslation: (code: string) => void;
   activeReference: Reference | null;
@@ -49,13 +51,17 @@ interface WorkspaceCtx {
   setNotesLastColor: (c: string | undefined) => void;
   notesFolder: string | null;
   setNotesFolder: (p: string | null) => void;
+  anchorPalette: PaletteId;
+  setAnchorPalette: (p: PaletteId) => void;
 }
 
 const Ctx = createContext<WorkspaceCtx | null>(null);
 const THEME_KEY = "doxa-theme";
+const DEFAULT_TRANSLATION_KEY = "doxa-default-translation";
 const NOTES_HIGHLIGHT_COLOR_KEY = "doxa-notes-highlight-color";
 const NOTES_LAST_COLOR_KEY = "doxa-notes-last-color";
 const NOTES_FOLDER_KEY = "doxa-notes-folder";
+const ANCHOR_PALETTE_KEY = "doxa-anchor-palette";
 
 function initialTheme(): Theme {
   const saved = localStorage.getItem(THEME_KEY);
@@ -85,6 +91,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   );
   const [notesFolder, setNotesFolderState] = useState<string | null>(() =>
     localStorage.getItem(NOTES_FOLDER_KEY),
+  );
+  const [userDefaultTranslation, setUserDefaultTranslationState] = useState<
+    string | null
+  >(() => localStorage.getItem(DEFAULT_TRANSLATION_KEY));
+  const [anchorPalette, setAnchorPaletteState] = useState<PaletteId>(
+    () => (localStorage.getItem(ANCHOR_PALETTE_KEY) as PaletteId) || "koine",
   );
 
   // Apply + persist theme (before paint to avoid a flash).
@@ -134,8 +146,19 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     if (p) localStorage.setItem(NOTES_FOLDER_KEY, p);
     else localStorage.removeItem(NOTES_FOLDER_KEY);
   }, []);
+  const setDefaultTranslation = useCallback((code: string) => {
+    setUserDefaultTranslationState(code);
+    localStorage.setItem(DEFAULT_TRANSLATION_KEY, code);
+  }, []);
+  const setAnchorPalette = useCallback((p: PaletteId) => {
+    setAnchorPaletteState(p);
+    localStorage.setItem(ANCHOR_PALETTE_KEY, p);
+  }, []);
 
+  // The default for newly-opened Readers: the user's saved choice, else the
+  // DB's is_default. Existing Readers keep the translation they opened with.
   const defaultTranslation =
+    userDefaultTranslation ??
     translations.find((t) => t.is_default)?.code ??
     translations[0]?.code ??
     "ESV";
@@ -150,6 +173,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       ready,
       loadError,
       defaultTranslation,
+      setDefaultTranslation,
       activeTranslation,
       setActiveTranslation,
       activeReference,
@@ -162,6 +186,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setNotesLastColor,
       notesFolder,
       setNotesFolder,
+      anchorPalette,
+      setAnchorPalette,
     }),
     [
       theme,
@@ -172,6 +198,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       ready,
       loadError,
       defaultTranslation,
+      setDefaultTranslation,
       activeTranslation,
       activeReference,
       bookName,
@@ -182,6 +209,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setNotesLastColor,
       notesFolder,
       setNotesFolder,
+      anchorPalette,
+      setAnchorPalette,
     ],
   );
 

@@ -1,26 +1,25 @@
-// Settings — home of the theme toggle (moved here, not the status bar),
-// default translation, notes editor preferences, and an anchor-highlight
-// palette placeholder.
+// Settings — theme, default translation (for new Readers), notes editor
+// preferences, and the anchor-highlight palette (drives note colors + the
+// editor's default highlight; see notes.ts / tokens.css).
 import { open } from "@tauri-apps/plugin-dialog";
 import { useWorkspace } from "../state/workspace";
 import { MoonIcon, SunIcon } from "../workspace/icons";
-import { NOTES_HIGHLIGHT_SWATCHES } from "./notes/notes";
-
-const DEFAULT_SWATCHES = [
-  "#E8B84B",
-  "#5FA8D3",
-  "#7BC47F",
-  "#E07A9B",
-  "#B58BE0",
-  "#E0855B",
-];
+import { HIGHLIGHT_PALETTES, paletteById, type PaletteId } from "./notes/notes";
 
 export function SettingsPanel() {
   const ws = useWorkspace();
+  const swatches = paletteById(ws.anchorPalette).swatches;
 
   async function chooseNotesFolder() {
     const dir = await open({ directory: true, multiple: false });
     if (typeof dir === "string") ws.setNotesFolder(dir);
+  }
+
+  // Switching palette resets the default highlight color to that palette's
+  // first swatch, so the picker below always has a valid selection.
+  function choosePalette(id: PaletteId) {
+    ws.setAnchorPalette(id);
+    ws.setNotesHighlightColor(`var(${paletteById(id).swatches[0].var})`);
   }
 
   return (
@@ -54,11 +53,18 @@ export function SettingsPanel() {
             Reading
           </h3>
           <div className="flex items-center justify-between gap-3 py-2">
-            <span className="text-(length:--text-sm)">Default translation</span>
+            <div className="flex flex-col">
+              <span className="text-(length:--text-sm)">
+                Default translation
+              </span>
+              <span className="panel__muted">
+                Used when opening a new Reader
+              </span>
+            </div>
             <select
               className="input"
-              value={ws.activeTranslation}
-              onChange={(e) => ws.setActiveTranslation(e.target.value)}
+              value={ws.defaultTranslation}
+              onChange={(e) => ws.setDefaultTranslation(e.target.value)}
             >
               {ws.translations.map((t) => (
                 <option key={t.code} value={t.code}>
@@ -82,7 +88,7 @@ export function SettingsPanel() {
               role="group"
               aria-label="Notes highlight color"
             >
-              {NOTES_HIGHLIGHT_SWATCHES.map((s) => {
+              {swatches.map((s) => {
                 const value = `var(${s.var})`;
                 return (
                   <button
@@ -108,7 +114,7 @@ export function SettingsPanel() {
             <div className="flex flex-col">
               <span className="text-(length:--text-sm)">Notes folder</span>
               <span className="panel__muted">
-                {ws.notesFolder ?? "Using bundled sample notes"}
+                {ws.notesFolder ?? "Default folder (app data)"}
               </span>
             </div>
             <button
@@ -126,16 +132,43 @@ export function SettingsPanel() {
             Anchor highlights
           </h3>
           <p className="panel__muted">
-            Palette for verse-anchor highlights in the Reader — coming soon.
+            Palette for verse-anchor highlights in the Reader. Existing notes
+            keep their color when you switch.
           </p>
-          <div className="flex gap-2 mt-2" aria-hidden="true">
-            {DEFAULT_SWATCHES.map((c) => (
-              <span
-                key={c}
-                className="w-[22px] h-[22px] rounded-full border border-border"
-                style={{ background: c }}
-              />
-            ))}
+          <div
+            className="flex flex-col gap-2 mt-3"
+            role="radiogroup"
+            aria-label="Anchor highlight palette"
+          >
+            {HIGHLIGHT_PALETTES.map((p) => {
+              const selected = ws.anchorPalette === p.id;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  onClick={() => choosePalette(p.id)}
+                  className={
+                    "flex items-center justify-between gap-3 px-3 py-2 rounded-(--radius-md) border text-left transition-colors duration-(--dur-fast)" +
+                    (selected
+                      ? " border-accent bg-accent-tint"
+                      : " border-border hover:bg-accent-tint")
+                  }
+                >
+                  <span className="text-(length:--text-sm)">{p.name}</span>
+                  <span className="flex gap-1.5">
+                    {p.swatches.map((s) => (
+                      <span
+                        key={s.var}
+                        className="w-[18px] h-[18px] rounded-full border border-border"
+                        style={{ background: `var(${s.var})` }}
+                      />
+                    ))}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </section>
       </div>

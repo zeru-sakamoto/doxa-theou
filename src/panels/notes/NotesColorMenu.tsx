@@ -6,7 +6,8 @@
 // swatch grid, not a flat action list, so workspace/Menu isn't reusable.
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { NOTES_HIGHLIGHT_SWATCHES } from "./notes";
+import { useWorkspace } from "../../state/workspace";
+import { paletteById } from "./notes";
 
 interface Props {
   color: string | undefined;
@@ -14,6 +15,8 @@ interface Props {
 }
 
 export function NotesColorMenu({ color, onChange }: Props) {
+  const ws = useWorkspace();
+  const swatches = paletteById(ws.anchorPalette).swatches;
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const reduce = useReducedMotion();
@@ -78,7 +81,7 @@ export function NotesColorMenu({ color, onChange }: Props) {
                   : " border-border")
               }
             />
-            {NOTES_HIGHLIGHT_SWATCHES.map((s) => {
+            {swatches.map((s) => {
               const value = `var(${s.var})`;
               return (
                 <button

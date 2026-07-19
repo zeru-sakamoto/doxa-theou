@@ -1,16 +1,10 @@
-// Notes are Markdown files on disk with YAML-ish frontmatter (see product
-// doc). These sample notes stand in for the real store, which will read
-// from disk + a SQLite index (see DESIGN.md) once that lands.
-export interface Note {
-  id: string;
-  title: string;
-  tags: string[];
-  anchors: string[];
-  color?: string;
-  created: string;
-  modified: string;
-  body: string;
-}
+// Frontend-only notes helpers. The Note type, disk I/O, and the SQLite index
+// now live in the backend (src-tauri/src/notes.rs, wrapped in api.ts); what's
+// left here is UI-side: the list preview, the highlight palette, and anchor
+// parsing (shared by the Reader's highlight index and the anchor rows).
+import type { Book, Note } from "../../api";
+
+export type { Note };
 
 // Notes highlight palette: 7 hues evenly spaced around the accent's own hue
 // (indigo, the primary), so every alternative harmonizes with it by
@@ -18,7 +12,13 @@ export interface Note {
 // legible when the user flips light/dark (see tokens.css). Shared by
 // SettingsPanel's default highlight picker and NotesColorMenu's per-note
 // color picker.
-export const NOTES_HIGHLIGHT_SWATCHES = [
+export interface Swatch {
+  name: string;
+  var: string;
+}
+
+// Koine Ink — the 7 hues that harmonize with the indigo accent (see tokens).
+export const NOTES_HIGHLIGHT_SWATCHES: Swatch[] = [
   { name: "Indigo", var: "--highlight-indigo" },
   { name: "Violet", var: "--highlight-violet" },
   { name: "Rose", var: "--highlight-rose" },
@@ -27,6 +27,49 @@ export const NOTES_HIGHLIGHT_SWATCHES = [
   { name: "Green", var: "--highlight-green" },
   { name: "Teal", var: "--highlight-teal" },
 ];
+
+// Selectable anchor-highlight palettes (tokens in tokens.css). The chosen
+// palette drives the swatches offered for a note's color and the editor's
+// default highlight; existing notes keep whatever color var they were given,
+// so switching palette never recolors old highlights (Logos-style).
+export type PaletteId = "koine" | "manuscript" | "vivid";
+
+export interface Palette {
+  id: PaletteId;
+  name: string;
+  swatches: Swatch[];
+}
+
+export const HIGHLIGHT_PALETTES: Palette[] = [
+  { id: "koine", name: "Koine Ink", swatches: NOTES_HIGHLIGHT_SWATCHES },
+  {
+    id: "manuscript",
+    name: "Manuscript",
+    swatches: [
+      { name: "Gold", var: "--highlight-gold" },
+      { name: "Sage", var: "--highlight-sage" },
+      { name: "Mauve", var: "--highlight-mauve" },
+      { name: "Clay", var: "--highlight-clay" },
+      { name: "Moss", var: "--highlight-moss" },
+      { name: "Slate", var: "--highlight-slate" },
+    ],
+  },
+  {
+    id: "vivid",
+    name: "Vivid",
+    swatches: [
+      { name: "Yellow", var: "--highlight-yellow" },
+      { name: "Grass", var: "--highlight-grass" },
+      { name: "Pink", var: "--highlight-pink" },
+      { name: "Sky", var: "--highlight-sky" },
+      { name: "Orange", var: "--highlight-orange" },
+      { name: "Purple", var: "--highlight-purple" },
+    ],
+  },
+];
+
+export const paletteById = (id: string): Palette =>
+  HIGHLIGHT_PALETTES.find((p) => p.id === id) ?? HIGHLIGHT_PALETTES[0];
 
 // ponytail: crude line-prefix strip instead of a Markdown parser — this is
 // only ever shown as a truncated list-card preview, never rendered as HTML.
@@ -47,47 +90,30 @@ export function notePreview(note: Note): string {
   return preview.length > 80 ? preview.slice(0, 80) + "…" : preview;
 }
 
-function parseValue(raw: string): string | string[] {
-  const v = raw.trim();
-  if (v.startsWith("[") && v.endsWith("]")) {
-    return v
-      .slice(1, -1)
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-  }
-  return v;
+// A resolved anchor: "BookName Chapter[:Verse[-Verse]]" -> ids. A bare chapter
+// leaves verse bounds undefined (whole-chapter anchor); a single verse has
+// verseStart === verseEnd. Lifted out of NotesAnchorBar so the Reader's
+// highlight index and the anchor rows share one parser (mirrors the Rust
+// resolve_anchor used to build the SQLite index).
+export interface AnchorRef {
+  bookId: number;
+  chapter: number;
+  verseStart?: number;
+  verseEnd?: number;
 }
 
-// ponytail: hand-rolled `key: value` / `[a, b]` frontmatter parser instead of
-// a YAML dependency — the sample notes only ever use flat scalars and lists.
-export function parseNote(raw: string): Note {
-  const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
-  if (!match) throw new Error("Note is missing frontmatter");
-  const [, frontmatter, body] = match;
-  const data: Record<string, string | string[]> = {};
-  for (const line of frontmatter.split("\n")) {
-    const i = line.indexOf(":");
-    if (i === -1) continue;
-    data[line.slice(0, i).trim()] = parseValue(line.slice(i + 1));
-  }
+export function parseAnchor(anchor: string, books: Book[]): AnchorRef | null {
+  const book = books.find((b) =>
+    anchor.toLowerCase().startsWith(b.name.toLowerCase() + " "),
+  );
+  if (!book) return null;
+  const rest = anchor.slice(book.name.length).trim();
+  const m = rest.match(/^(\d+)(?::(\d+)(?:-(\d+))?)?$/);
+  if (!m) return null;
   return {
-    id: data.id as string,
-    title: data.title as string,
-    tags: (data.tags as string[]) ?? [],
-    anchors: (data.anchors as string[]) ?? [],
-    color: data.color as string | undefined,
-    created: data.created as string,
-    modified: data.modified as string,
-    body: body.trim(),
+    bookId: book.id,
+    chapter: parseInt(m[1], 10),
+    verseStart: m[2] ? parseInt(m[2], 10) : undefined,
+    verseEnd: m[3] ? parseInt(m[3], 10) : m[2] ? parseInt(m[2], 10) : undefined,
   };
-}
-
-export function loadNotes(): Note[] {
-  const files = import.meta.glob("./sample/*.md", {
-    eager: true,
-    query: "?raw",
-    import: "default",
-  }) as Record<string, string>;
-  return Object.values(files).map(parseNote);
 }

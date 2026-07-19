@@ -16,6 +16,7 @@ import { useWorkspace } from "../../state/workspace";
 import { parseQuery } from "../../workspace/CommandPalette";
 import { useDock } from "../../workspace/dock";
 import { CheckIcon, CloseIcon } from "../../workspace/icons";
+import { parseAnchor } from "./notes";
 
 // Matches parseQuery's own trailing "chapter[:verse]" match — reused here to
 // know where the book-name portion of the draft ends, so picking a
@@ -115,32 +116,6 @@ export function NotesAnchorBar({
       )}
     </div>
   );
-}
-
-interface Parsed {
-  bookId: number;
-  chapter: number;
-  verseStart?: number;
-  verseEnd?: number;
-}
-
-// Anchors are always "BookName Chapter[:Verse[-Verse]]" (see notes.ts /
-// NotesFilterMenu's matching) — reuses the same startsWith(bookName + " ")
-// idiom already used to filter notes by book.
-function parseAnchor(anchor: string, books: Book[]): Parsed | null {
-  const book = books.find((b) =>
-    anchor.toLowerCase().startsWith(b.name.toLowerCase() + " "),
-  );
-  if (!book) return null;
-  const rest = anchor.slice(book.name.length).trim();
-  const m = rest.match(/^(\d+)(?::(\d+)(?:-(\d+))?)?$/);
-  if (!m) return null;
-  return {
-    bookId: book.id,
-    chapter: parseInt(m[1], 10),
-    verseStart: m[2] ? parseInt(m[2], 10) : undefined,
-    verseEnd: m[3] ? parseInt(m[3], 10) : m[2] ? parseInt(m[2], 10) : undefined,
-  };
 }
 
 function AnchorRow({

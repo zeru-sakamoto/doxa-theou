@@ -37,16 +37,71 @@ export interface SearchHit {
   score: number; // bm25, lower = better
 }
 
+// A note: Markdown-on-disk (frontmatter) mirrored by these fields. Disk I/O
+// and the SQLite index live in Rust (src-tauri/src/notes.rs); this is the DTO.
+export interface Note {
+  id: string;
+  title: string;
+  tags: string[];
+  anchors: string[];
+  color?: string;
+  created: string;
+  modified: string;
+  body: string;
+}
+
+// Read side of the notes index — anchors landing in a chapter.
+export interface ChapterNote {
+  note_id: string;
+  title: string;
+  color?: string;
+  verse_start?: number;
+  verse_end?: number;
+}
+
 export const listBooks = () => invoke<Book[]>("list_books");
 export const listTranslations = () =>
   invoke<Translation[]>("list_translations");
-export const getChapter = (
+export const search = (query: string, translation?: string) =>
+  invoke<SearchHit[]>("search", { query, translation });
+
+// ponytail: bounded FIFO cache over get_chapter — one chapter is a few KB, so
+// keeping the last two dozen makes Reader back/forth and anchor previews free
+// (no IPC/SQLite round-trip) at near-zero memory. Insertion order = eviction
+// order (Map keeps it). Verse text is immutable, so entries never go stale.
+const chapterCache = new Map<string, Verse[]>();
+const CHAPTER_CACHE_MAX = 24;
+
+export const getChapter = async (
   bookId: number,
   chapter: number,
   translation: string,
-) => invoke<Verse[]>("get_chapter", { bookId, chapter, translation });
-export const search = (query: string, translation?: string) =>
-  invoke<SearchHit[]>("search", { query, translation });
+): Promise<Verse[]> => {
+  const key = `${bookId}:${chapter}:${translation}`;
+  const cached = chapterCache.get(key);
+  if (cached) return cached;
+  const verses = await invoke<Verse[]>("get_chapter", {
+    bookId,
+    chapter,
+    translation,
+  });
+  chapterCache.set(key, verses);
+  if (chapterCache.size > CHAPTER_CACHE_MAX) {
+    const oldest = chapterCache.keys().next().value;
+    if (oldest !== undefined) chapterCache.delete(oldest);
+  }
+  return verses;
+};
+
+// Notes: folder null → Rust uses the default app-local-data/notes dir.
+export const loadNotes = (folder: string | null) =>
+  invoke<Note[]>("load_notes", { folder });
+export const saveNote = (note: Note, folder: string | null) =>
+  invoke<void>("save_note", { note, folder });
+export const deleteNote = (id: string, folder: string | null) =>
+  invoke<void>("delete_note", { id, folder });
+export const notesForChapter = (bookId: number, chapter: number) =>
+  invoke<ChapterNote[]>("notes_for_chapter", { bookId, chapter });
 
 // ponytail: canonical chapter counts for the 66-book Protestant canon, indexed
 // by book id (1..66). Fixed across the imported translations (ESV/NASB/NKJV/AMP/

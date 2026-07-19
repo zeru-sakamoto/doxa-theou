@@ -1,8 +1,9 @@
 // Notes — header (hamburger note list, search, tag/book filter) and the
-// editor (live type-to-transform Markdown, see notes/NotesEditor.tsx) are
-// real. Backed by sample Markdown-on-disk notes with frontmatter (see
-// notes/notes.ts) — no persistence/backend yet, edits don't save to disk.
+// editor (live type-to-transform Markdown). Notes live in NotesProvider
+// (src/state/notes.tsx): loaded from disk, persisted through Rust on edit,
+// and shared with the Reader for verse-anchor highlighting.
 import { useMemo, useState } from "react";
+import { useNotes } from "../state/notes";
 import { formatReference, useWorkspace } from "../state/workspace";
 import { Menu } from "../workspace/Menu";
 import { MenuIcon, MoreIcon } from "../workspace/icons";
@@ -10,25 +11,10 @@ import { NotesColorMenu } from "./notes/NotesColorMenu";
 import { NotesDrawer } from "./notes/NotesDrawer";
 import { NotesEditor } from "./notes/NotesEditor";
 import { NotesFilterMenu } from "./notes/NotesFilterMenu";
-import { loadNotes, type Note } from "./notes/notes";
-
-function newNote(color: string | undefined): Note {
-  const now = new Date().toISOString();
-  return {
-    id: crypto.randomUUID(),
-    title: "",
-    tags: [],
-    anchors: [],
-    color,
-    created: now,
-    modified: now,
-    body: "",
-  };
-}
 
 export function NotesPanel() {
   const ws = useWorkspace();
-  const [notes, setNotes] = useState<Note[]>(() => loadNotes());
+  const { notes, createNote, updateNote, deleteNote } = useNotes();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [anchorDraft, setAnchorDraft] = useState<string | null>(null);
@@ -45,64 +31,33 @@ export function NotesPanel() {
   }
 
   function handleNewNote() {
-    const n = newNote(ws.notesLastColor);
-    setNotes((prev) => [n, ...prev]);
+    const n = createNote(ws.notesLastColor);
     selectNote(n.id);
+  }
+
+  function handleDeleteNote() {
+    if (!selectedNote) return;
+    deleteNote(selectedNote.id);
+    selectNote(null);
   }
 
   function confirmAnchor(value: string) {
     const v = value.trim();
-    if (v && selectedNote) {
-      const id = selectedNote.id;
-      setNotes((prev) =>
-        prev.map((n) =>
-          n.id === id && !n.anchors.includes(v)
-            ? {
-                ...n,
-                anchors: [...n.anchors, v],
-                modified: new Date().toISOString(),
-              }
-            : n,
-        ),
-      );
-    }
+    if (v && selectedNote && !selectedNote.anchors.includes(v))
+      updateNote(selectedNote.id, (n) => ({ anchors: [...n.anchors, v] }));
     setAnchorDraft(null);
   }
 
   function removeAnchor(anchor: string) {
     if (!selectedNote) return;
-    const id = selectedNote.id;
-    setNotes((prev) =>
-      prev.map((n) =>
-        n.id === id
-          ? {
-              ...n,
-              anchors: n.anchors.filter((a) => a !== anchor),
-              modified: new Date().toISOString(),
-            }
-          : n,
-      ),
-    );
-  }
-
-  function updateTitle(title: string) {
-    if (!selectedNote) return;
-    const id = selectedNote.id;
-    setNotes((prev) =>
-      prev.map((n) =>
-        n.id === id ? { ...n, title, modified: new Date().toISOString() } : n,
-      ),
-    );
+    updateNote(selectedNote.id, (n) => ({
+      anchors: n.anchors.filter((a) => a !== anchor),
+    }));
   }
 
   function updateColor(color: string | undefined) {
     if (!selectedNote) return;
-    const id = selectedNote.id;
-    setNotes((prev) =>
-      prev.map((n) =>
-        n.id === id ? { ...n, color, modified: new Date().toISOString() } : n,
-      ),
-    );
+    updateNote(selectedNote.id, { color });
     ws.setNotesLastColor(color);
   }
 
@@ -188,6 +143,11 @@ export function NotesPanel() {
                       : "",
                   ),
               },
+              {
+                label: "Delete note",
+                disabled: !selectedNote,
+                onSelect: handleDeleteNote,
+              },
             ]}
           >
             <MoreIcon size={16} />
@@ -211,7 +171,8 @@ export function NotesPanel() {
               anchorDraft={anchorDraft}
               onConfirmAnchor={confirmAnchor}
               onCancelAnchor={() => setAnchorDraft(null)}
-              onTitleChange={updateTitle}
+              onTitleChange={(title) => updateNote(selectedNote.id, { title })}
+              onBodyChange={(body) => updateNote(selectedNote.id, { body })}
             />
           ) : (
             <p className="panel__muted p-4">Select a note to start writing.</p>

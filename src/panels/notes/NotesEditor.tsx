@@ -22,6 +22,7 @@ interface Props {
   onConfirmAnchor: (value: string) => void;
   onCancelAnchor: () => void;
   onTitleChange: (title: string) => void;
+  onBodyChange: (body: string) => void;
 }
 
 export function NotesEditor({
@@ -31,6 +32,7 @@ export function NotesEditor({
   onConfirmAnchor,
   onCancelAnchor,
   onTitleChange,
+  onBodyChange,
 }: Props) {
   const ws = useWorkspace();
   const editor = useEditor({
@@ -46,9 +48,9 @@ export function NotesEditor({
     ],
     content: note.body,
     contentType: "markdown",
+    // Round-trip back to Markdown on edit; NotesProvider debounces the save.
+    onUpdate: ({ editor }) => onBodyChange(editor.getMarkdown()),
   });
-  // Round-trips back to Markdown via editor.getMarkdown() — wire this up
-  // once note persistence lands (see notes.ts header comment).
 
   return (
     <div className="flex flex-col flex-1 min-h-0">

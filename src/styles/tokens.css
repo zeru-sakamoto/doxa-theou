@@ -36,6 +36,24 @@
   --ink-l-highlight-green: #88dd91;
   --ink-l-highlight-teal: #88ddda;
 
+  /* Anchor-highlight palettes (selectable in Settings). Rendered as low-alpha
+     verse washes in the Reader, so the verse ink stays legible over --bg in
+     either theme regardless of hue. Manuscript = muted/scholarly earth tones;
+     Vivid = classic felt-tip highlighter colors. Koine Ink reuses the 7 hues
+     above. */
+  --ink-l-highlight-gold: #e8c46a;
+  --ink-l-highlight-sage: #a9c2a0;
+  --ink-l-highlight-mauve: #d7a9b7;
+  --ink-l-highlight-clay: #ddb08c;
+  --ink-l-highlight-moss: #b7c77e;
+  --ink-l-highlight-slate: #9fb0d4;
+  --ink-l-highlight-yellow: #ffe066;
+  --ink-l-highlight-grass: #9be07a;
+  --ink-l-highlight-pink: #ff8fb1;
+  --ink-l-highlight-sky: #7ec8f0;
+  --ink-l-highlight-orange: #ffb067;
+  --ink-l-highlight-purple: #c79bf0;
+
   /* Dark palette (Bible Study App.md) */
   --ink-d-bg: #14161c;
   --ink-d-panel: #1b1e26;
@@ -57,6 +75,20 @@
   --ink-d-highlight-lime: #586b1f;
   --ink-d-highlight-green: #1f6b27;
   --ink-d-highlight-teal: #1f6b68;
+
+  /* Manuscript + Vivid deepened for dark (same hue, lower L). */
+  --ink-d-highlight-gold: #5c4a24;
+  --ink-d-highlight-sage: #3c4d38;
+  --ink-d-highlight-mauve: #593a45;
+  --ink-d-highlight-clay: #574029;
+  --ink-d-highlight-moss: #464f24;
+  --ink-d-highlight-slate: #333f5a;
+  --ink-d-highlight-yellow: #6b5a1f;
+  --ink-d-highlight-grass: #2f5e22;
+  --ink-d-highlight-pink: #6b2f45;
+  --ink-d-highlight-sky: #1f4a6b;
+  --ink-d-highlight-orange: #6b451f;
+  --ink-d-highlight-purple: #4a2f6b;
 
   --ink-white: #ffffff;
 
@@ -142,6 +174,18 @@
   --highlight-lime: var(--ink-l-highlight-lime);
   --highlight-green: var(--ink-l-highlight-green);
   --highlight-teal: var(--ink-l-highlight-teal);
+  --highlight-gold: var(--ink-l-highlight-gold);
+  --highlight-sage: var(--ink-l-highlight-sage);
+  --highlight-mauve: var(--ink-l-highlight-mauve);
+  --highlight-clay: var(--ink-l-highlight-clay);
+  --highlight-moss: var(--ink-l-highlight-moss);
+  --highlight-slate: var(--ink-l-highlight-slate);
+  --highlight-yellow: var(--ink-l-highlight-yellow);
+  --highlight-grass: var(--ink-l-highlight-grass);
+  --highlight-pink: var(--ink-l-highlight-pink);
+  --highlight-sky: var(--ink-l-highlight-sky);
+  --highlight-orange: var(--ink-l-highlight-orange);
+  --highlight-purple: var(--ink-l-highlight-purple);
 
   --scrim: rgb(20 22 28 / 0.35);
   --shadow-1: 0 1px 2px rgb(16 18 24 / 0.06);
@@ -170,6 +214,18 @@
   --highlight-lime: var(--ink-d-highlight-lime);
   --highlight-green: var(--ink-d-highlight-green);
   --highlight-teal: var(--ink-d-highlight-teal);
+  --highlight-gold: var(--ink-d-highlight-gold);
+  --highlight-sage: var(--ink-d-highlight-sage);
+  --highlight-mauve: var(--ink-d-highlight-mauve);
+  --highlight-clay: var(--ink-d-highlight-clay);
+  --highlight-moss: var(--ink-d-highlight-moss);
+  --highlight-slate: var(--ink-d-highlight-slate);
+  --highlight-yellow: var(--ink-d-highlight-yellow);
+  --highlight-grass: var(--ink-d-highlight-grass);
+  --highlight-pink: var(--ink-d-highlight-pink);
+  --highlight-sky: var(--ink-d-highlight-sky);
+  --highlight-orange: var(--ink-d-highlight-orange);
+  --highlight-purple: var(--ink-d-highlight-purple);
 
   --scrim: rgb(0 0 0 / 0.5);
   --shadow-1: 0 1px 2px rgb(0 0 0 / 0.3);

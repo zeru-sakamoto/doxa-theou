@@ -1,8 +1,15 @@
 // Reader — one panel, one translation ("version-dedicated"), chosen at open.
 // Header carries the TOC toggle, current reference, and the bound version.
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+} from "react";
 import type { IDockviewPanelProps } from "dockview-react";
 import { getChapter, type Verse } from "../api";
+import { useNotes } from "../state/notes";
 import { useWorkspace } from "../state/workspace";
 import { MenuIcon } from "../workspace/icons";
 import { TocDrawer } from "./reader/TocDrawer";
@@ -18,6 +25,7 @@ export function ReaderPanel({
   params,
 }: IDockviewPanelProps<ReaderParams>) {
   const ws = useWorkspace();
+  const { anchorIndex } = useNotes();
   const translation = params.translation ?? ws.defaultTranslation;
   const [bookId, setBookId] = useState(params.bookId ?? 43); // John
   const [chapter, setChapter] = useState(params.chapter ?? 1);
@@ -78,6 +86,40 @@ export function ReaderPanel({
     setTocOpen(false);
   }, []);
 
+  // Note anchors landing in this chapter → per-verse highlight washes.
+  const highlights = useMemo(
+    () => anchorIndex.get(`${bookId}:${chapter}`) ?? [],
+    [anchorIndex, bookId, chapter],
+  );
+
+  // Colors covering a verse, painted as low-alpha washes. Multiple notes on
+  // one verse stack + mix (background-blend-mode: multiply), Logos-style; a
+  // left gutter marker keeps highlighted verses scannable. Notes with no
+  // color fall back to the workspace default highlight color.
+  const highlightStyle = useCallback(
+    (verse: number): CSSProperties | undefined => {
+      const colors = new Set<string>();
+      for (const h of highlights) {
+        const start = h.verseStart ?? 1; // whole-chapter anchor covers all
+        const end = h.verseEnd ?? Number.MAX_SAFE_INTEGER;
+        if (verse >= start && verse <= end)
+          colors.add(h.color ?? ws.notesHighlightColor);
+      }
+      if (colors.size === 0) return undefined;
+      const list = [...colors];
+      const layers = list.map((c) => {
+        const wash = `color-mix(in srgb, ${c} 42%, transparent)`;
+        return `linear-gradient(${wash}, ${wash})`;
+      });
+      return {
+        backgroundImage: layers.join(", "),
+        backgroundBlendMode: list.length > 1 ? "multiply" : "normal",
+        boxShadow: `inset 3px 0 0 ${list[0]}`,
+      };
+    },
+    [highlights, ws.notesHighlightColor],
+  );
+
   return (
     <div
       className="relative h-full flex flex-col bg-bg overflow-hidden"
@@ -112,7 +154,11 @@ export function ReaderPanel({
         {!error && verses.length > 0 && (
           <ol className="list-none m-0 py-4 px-6 max-w-[70ch] font-(family-name:--font-serif) text-(length:--text-read) leading-(--lh-read) text-ink">
             {verses.map((v) => (
-              <li key={v.verse_ref_id} className="mb-[0.35em]">
+              <li
+                key={v.verse_ref_id}
+                className="mb-[0.35em] -mx-1.5 px-1.5 rounded-(--radius-sm)"
+                style={highlightStyle(v.verse)}
+              >
                 <sup className="font-(family-name:--font-mono) text-[0.72em] font-medium text-accent align-super mr-[0.4em]">
                   {v.verse}
                 </sup>

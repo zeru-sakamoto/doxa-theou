@@ -26,3 +26,11 @@ serde_json = "1"
 rusqlite = { version = "0.32", features = ["bundled"] }
 tauri-plugin-dialog = "2.7.2"
 
+# Lean release build for low-end devices: smaller binary + memory footprint.
+# opt-level "s" (size) over "3" — this app's hot path is SQLite, not CPU math.
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+
