@@ -27,6 +27,14 @@ export interface Verse {
   text: string;
 }
 
+export interface SectionHeading {
+  chapter: number;
+  verse_start: number;
+  end_chapter: number;
+  verse_end: number;
+  heading: string;
+}
+
 export interface SearchHit {
   verse_ref_id: number;
   book_id: number;
@@ -91,6 +99,30 @@ export const getChapter = async (
     if (oldest !== undefined) chapterCache.delete(oldest);
   }
   return verses;
+};
+
+// ponytail: same bounded-cache shape as chapterCache — headings are immutable
+// per (book, chapter, translation) too, just a separate table/query on the Rust side.
+const headingsCache = new Map<string, SectionHeading[]>();
+
+export const sectionHeadingsForChapter = async (
+  bookId: number,
+  chapter: number,
+  translation: string,
+): Promise<SectionHeading[]> => {
+  const key = `${bookId}:${chapter}:${translation}`;
+  const cached = headingsCache.get(key);
+  if (cached) return cached;
+  const headings = await invoke<SectionHeading[]>(
+    "section_headings_for_chapter",
+    { bookId, chapter, translation },
+  );
+  headingsCache.set(key, headings);
+  if (headingsCache.size > CHAPTER_CACHE_MAX) {
+    const oldest = headingsCache.keys().next().value;
+    if (oldest !== undefined) headingsCache.delete(oldest);
+  }
+  return headings;
 };
 
 // Notes: folder null → Rust uses the default app-local-data/notes dir.

@@ -67,16 +67,6 @@ CREATE INDEX IF NOT EXISTS idx_note_anchors_loc ON note_anchors(book_id, chapter
 CREATE INDEX IF NOT EXISTS idx_note_tags_note ON note_tags(note_id);
 ";
 
-// Bundled first-run notes. include_str! reaches into the frontend tree (the
-// files' original home) rather than duplicating them — repo-root-relative.
-const SAMPLES: &[(&str, &str)] = &[
-    ("psalm23-comfort", include_str!("../../src/panels/notes/sample/psalm23-comfort.md")),
-    ("covenant-abraham", include_str!("../../src/panels/notes/sample/covenant-abraham.md")),
-    ("fruit-of-spirit", include_str!("../../src/panels/notes/sample/fruit-of-spirit.md")),
-    ("incarnation-01", include_str!("../../src/panels/notes/sample/incarnation-01.md")),
-    ("prayer-model", include_str!("../../src/panels/notes/sample/prayer-model.md")),
-];
-
 /// Open (creating) the notes index DB and ensure the schema exists.
 pub fn open(path: &Path) -> rusqlite::Result<Connection> {
     let conn = Connection::open(path)?;
@@ -242,24 +232,9 @@ fn upsert_note(conn: &Connection, path: &Path, note: &Note, books: &[(String, i6
     Ok(())
 }
 
-fn seed_if_empty(folder: &Path) -> std::io::Result<()> {
-    let has_md = fs::read_dir(folder)?
-        .filter_map(|e| e.ok())
-        .any(|e| e.path().extension().and_then(|x| x.to_str()) == Some("md"));
-    if has_md {
-        return Ok(());
-    }
-    for (id, content) in SAMPLES {
-        fs::write(folder.join(format!("{id}.md")), content)?;
-    }
-    Ok(())
-}
-
 /// Read every `.md` in `folder`, rebuild the whole index, return the notes.
-/// Seeds the bundled samples on first run (empty folder).
 pub fn load_notes(conn: &Connection, books: &[(String, i64)], folder: &Path) -> Result<Vec<Note>, String> {
     fs::create_dir_all(folder).map_err(|e| e.to_string())?;
-    seed_if_empty(folder).map_err(|e| e.to_string())?;
 
     let mut loaded: Vec<(PathBuf, Note)> = Vec::new();
     for entry in fs::read_dir(folder).map_err(|e| e.to_string())? {

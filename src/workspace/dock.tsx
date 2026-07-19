@@ -99,7 +99,10 @@ export function DockProvider({ children }: { children: ReactNode }) {
   const idRef = useRef(0);
 
   const addReader = useCallback(
-    (code: string, extra?: { bookId?: number; chapter?: number }) => {
+    (
+      code: string,
+      extra?: { bookId?: number; chapter?: number; verse?: number },
+    ) => {
       const api = apiRef.current;
       if (!api) return;
       api.addPanel({
@@ -162,7 +165,7 @@ export function DockProvider({ children }: { children: ReactNode }) {
       if (!api) return;
       const readers = api.panels.filter((p) => p.id.startsWith("reader-"));
       if (readers.length === 0) {
-        addReader(defaultTranslation, { bookId, chapter });
+        addReader(defaultTranslation, { bookId, chapter, verse });
         return;
       }
       if (!api.activePanel?.id.startsWith("reader-"))

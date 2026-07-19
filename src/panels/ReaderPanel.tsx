@@ -4,20 +4,28 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
 } from "react";
 import type { IDockviewPanelProps } from "dockview-react";
-import { getChapter, type Verse } from "../api";
+import {
+  getChapter,
+  sectionHeadingsForChapter,
+  type SectionHeading,
+  type Verse,
+} from "../api";
 import { useNotes } from "../state/notes";
 import { useWorkspace } from "../state/workspace";
-import { MenuIcon } from "../workspace/icons";
+import { BulletListIcon, MenuIcon, ParagraphIcon } from "../workspace/icons";
+import { PassageHeading } from "./reader/PassageHeading";
 import { TocDrawer } from "./reader/TocDrawer";
 
 export interface ReaderParams {
   translation: string;
   bookId?: number;
   chapter?: number;
+  verse?: number;
 }
 
 export function ReaderPanel({
@@ -30,9 +38,13 @@ export function ReaderPanel({
   const [bookId, setBookId] = useState(params.bookId ?? 43); // John
   const [chapter, setChapter] = useState(params.chapter ?? 1);
   const [verses, setVerses] = useState<Verse[]>([]);
+  const [headings, setHeadings] = useState<SectionHeading[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [tocOpen, setTocOpen] = useState(false);
+  const [flowMode, setFlowMode] = useState<"rows" | "paragraph">("rows");
+  const [pendingVerse, setPendingVerse] = useState(params.verse);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   // Load whenever the target passage or version changes.
   useEffect(() => {
@@ -43,6 +55,12 @@ export function ReaderPanel({
       .then((vs) => !cancelled && setVerses(vs))
       .catch((e) => !cancelled && setError(String(e)))
       .finally(() => !cancelled && setLoading(false));
+    // Headings only exist for ESV (that's the only translation they were parsed
+    // from); other translations get none. A failure here is non-fatal either way —
+    // just render without them.
+    sectionHeadingsForChapter(bookId, chapter, translation)
+      .then((hs) => !cancelled && setHeadings(hs))
+      .catch(() => !cancelled && setHeadings([]));
     return () => {
       cancelled = true;
     };
@@ -72,13 +90,25 @@ export function ReaderPanel({
       const d = (e as CustomEvent).detail as {
         bookId: number;
         chapter: number;
+        verse?: number;
       };
       setBookId(d.bookId);
       setChapter(d.chapter);
+      setPendingVerse(d.verse);
     }
     window.addEventListener("doxa:goto", onGoto);
     return () => window.removeEventListener("doxa:goto", onGoto);
   }, [api]);
+
+  // Scroll the target verse into view once its chapter has loaded.
+  useEffect(() => {
+    if (pendingVerse == null || verses.length === 0) return;
+    const el = scrollRef.current?.querySelector(
+      `[data-verse="${pendingVerse}"]`,
+    );
+    el?.scrollIntoView({ block: "start" });
+    setPendingVerse(undefined);
+  }, [pendingVerse, verses]);
 
   const navigate = useCallback((b: number, c: number) => {
     setBookId(b);
@@ -92,21 +122,30 @@ export function ReaderPanel({
     [anchorIndex, bookId, chapter],
   );
 
-  // Colors covering a verse, painted as low-alpha washes. Multiple notes on
-  // one verse stack + mix (background-blend-mode: multiply), Logos-style; a
-  // left gutter marker keeps highlighted verses scannable. Notes with no
-  // color fall back to the workspace default highlight color.
-  const highlightStyle = useCallback(
-    (verse: number): CSSProperties | undefined => {
+  // Colors covering a verse. Multiple notes on one verse stack + mix
+  // (background-blend-mode: multiply), Logos-style. Notes with no color
+  // don't highlight at all.
+  const verseColors = useCallback(
+    (verse: number): string[] => {
       const colors = new Set<string>();
       for (const h of highlights) {
+        if (!h.color) continue;
         const start = h.verseStart ?? 1; // whole-chapter anchor covers all
         const end = h.verseEnd ?? Number.MAX_SAFE_INTEGER;
-        if (verse >= start && verse <= end)
-          colors.add(h.color ?? ws.notesHighlightColor);
+        if (verse >= start && verse <= end) colors.add(h.color);
       }
-      if (colors.size === 0) return undefined;
-      const list = [...colors];
+      return [...colors];
+    },
+    [highlights],
+  );
+
+  // Low-alpha wash painted on just the verse text (inline, not the row),
+  // so it hugs the words instead of stretching full-width; box-decoration-break
+  // re-applies the padding/background per visual line when a verse wraps.
+  const highlightStyle = useCallback(
+    (verse: number): CSSProperties | undefined => {
+      const list = verseColors(verse);
+      if (list.length === 0) return undefined;
       const layers = list.map((c) => {
         const wash = `color-mix(in srgb, ${c} 42%, transparent)`;
         return `linear-gradient(${wash}, ${wash})`;
@@ -114,10 +153,49 @@ export function ReaderPanel({
       return {
         backgroundImage: layers.join(", "),
         backgroundBlendMode: list.length > 1 ? "multiply" : "normal",
-        boxShadow: `inset 3px 0 0 ${list[0]}`,
-      };
+        padding: "0.05em 0.3em",
+        margin: "-0.05em -0.3em",
+        borderRadius: "var(--radius-sm)",
+        boxDecorationBreak: "clone",
+        WebkitBoxDecorationBreak: "clone",
+      } as CSSProperties;
     },
-    [highlights, ws.notesHighlightColor],
+    [verseColors],
+  );
+
+  // Split the chapter into segments at each heading's starting verse, so a
+  // passage heading renders once, right before the verse it introduces.
+  const segments = useMemo(() => {
+    const headingAt = new Map(
+      headings
+        .filter((h) => h.chapter === chapter)
+        .map((h) => [h.verse_start, h.heading]),
+    );
+    const segs: { heading?: string; verses: Verse[] }[] = [];
+    for (const v of verses) {
+      const heading = headingAt.get(v.verse);
+      if (heading != null || segs.length === 0)
+        segs.push({ heading, verses: [v] });
+      else segs[segs.length - 1].verses.push(v);
+    }
+    return segs;
+  }, [verses, headings, chapter]);
+
+  // Row mode only: within a segment, consecutive verses sharing a color are
+  // grouped so the left bracket marker spans the whole run instead of
+  // restarting per line. A heading is always a hard break between groups.
+  const colorGroups = useCallback(
+    (list: Verse[]) => {
+      const groups: { color?: string; verses: Verse[] }[] = [];
+      for (const v of list) {
+        const color = verseColors(v.verse)[0];
+        const last = groups[groups.length - 1];
+        if (last && last.color === color) last.verses.push(v);
+        else groups.push({ color, verses: [v] });
+      }
+      return groups;
+    },
+    [verseColors],
   );
 
   return (
@@ -138,12 +216,31 @@ export function ReaderPanel({
         <span className="font-medium text-(length:--text-sm)">
           {ws.bookName(bookId)} {chapter}
         </span>
-        <span className="ml-auto font-(family-name:--font-mono) text-(length:--text-xs) text-muted tracking-[0.03em]">
+        <button
+          className={`iconbtn ml-auto${flowMode === "paragraph" ? " is-active" : ""}`}
+          title={
+            flowMode === "rows"
+              ? "Switch to paragraph view"
+              : "Switch to row-by-row view"
+          }
+          aria-label="Toggle verse layout"
+          aria-pressed={flowMode === "paragraph"}
+          onClick={() =>
+            setFlowMode((m) => (m === "rows" ? "paragraph" : "rows"))
+          }
+        >
+          {flowMode === "rows" ? (
+            <BulletListIcon size={15} />
+          ) : (
+            <ParagraphIcon size={15} />
+          )}
+        </button>
+        <span className="font-(family-name:--font-mono) text-(length:--text-xs) text-muted tracking-[0.03em]">
           {translation}
         </span>
       </div>
 
-      <div className="flex-1 overflow-auto">
+      <div ref={scrollRef} className="flex-1 overflow-auto">
         {error && <p className="panel__error">{error}</p>}
         {!error && loading && <p className="panel__muted">Loading…</p>}
         {!error && !loading && verses.length === 0 && (
@@ -151,21 +248,71 @@ export function ReaderPanel({
             No verses for {ws.bookName(bookId)} {chapter} in {translation}.
           </p>
         )}
-        {!error && verses.length > 0 && (
-          <ol className="list-none m-0 py-4 px-6 max-w-[70ch] font-(family-name:--font-serif) text-(length:--text-read) leading-(--lh-read) text-ink">
-            {verses.map((v) => (
-              <li
-                key={v.verse_ref_id}
-                className="mb-[0.35em] -mx-1.5 px-1.5 rounded-(--radius-sm)"
-                style={highlightStyle(v.verse)}
-              >
-                <sup className="font-(family-name:--font-mono) text-[0.72em] font-medium text-accent align-super mr-[0.4em]">
-                  {v.verse}
-                </sup>
-                <span>{v.text}</span>
-              </li>
+        {!error && verses.length > 0 && flowMode === "rows" && (
+          <div className="py-4 px-6 max-w-[70ch] font-(family-name:--font-serif) text-(length:--text-read) leading-(--lh-read) text-ink">
+            {segments.map((seg, si) => (
+              <div key={si}>
+                {seg.heading && (
+                  <PassageHeading
+                    text={seg.heading}
+                    className={si === 0 ? "mt-0" : "mt-8"}
+                  />
+                )}
+                {colorGroups(seg.verses).map((g, gi) => (
+                  <div
+                    key={gi}
+                    className={g.color ? "-ml-1.5 pl-1.5" : undefined}
+                    style={
+                      g.color
+                        ? { boxShadow: `inset 3px 0 0 ${g.color}` }
+                        : undefined
+                    }
+                  >
+                    {g.verses.map((v) => (
+                      <div
+                        key={v.verse_ref_id}
+                        data-verse={v.verse}
+                        className="mb-[0.35em] scroll-mt-4"
+                      >
+                        <sup className="font-(family-name:--font-mono) text-[0.72em] font-medium text-accent align-super mr-[0.4em]">
+                          {v.verse}
+                        </sup>
+                        <span style={highlightStyle(v.verse)}>{v.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
             ))}
-          </ol>
+          </div>
+        )}
+        {!error && verses.length > 0 && flowMode === "paragraph" && (
+          <div className="py-4 px-6 max-w-[70ch]">
+            {segments.map((seg, si) => (
+              <div key={si}>
+                {seg.heading && (
+                  <PassageHeading
+                    text={seg.heading}
+                    className={si === 0 ? "mt-0" : "mt-8"}
+                  />
+                )}
+                <p className="m-0 font-(family-name:--font-serif) text-(length:--text-read) leading-(--lh-read) text-ink">
+                  {seg.verses.map((v) => (
+                    <span
+                      key={v.verse_ref_id}
+                      data-verse={v.verse}
+                      className="scroll-mt-4"
+                    >
+                      <sup className="font-(family-name:--font-mono) text-[0.72em] font-medium text-accent align-super mr-[0.3em]">
+                        {v.verse}
+                      </sup>
+                      <span style={highlightStyle(v.verse)}>{v.text} </span>
+                    </span>
+                  ))}
+                </p>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 

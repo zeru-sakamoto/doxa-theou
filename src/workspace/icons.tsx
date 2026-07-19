@@ -195,6 +195,14 @@ export const BulletListIcon = (p: { size?: number }) => (
   </Svg>
 );
 
+export const ParagraphIcon = (p: { size?: number }) => (
+  <Svg {...p}>
+    <line x1="4" y1="6" x2="20" y2="6" />
+    <line x1="4" y1="12" x2="20" y2="12" />
+    <line x1="4" y1="18" x2="14" y2="18" />
+  </Svg>
+);
+
 export const OrderedListIcon = (p: { size?: number }) => (
   <Svg {...p}>
     <path d="M4 6h1v4" />

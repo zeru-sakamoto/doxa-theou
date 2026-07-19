@@ -36,6 +36,15 @@ pub struct Verse {
 }
 
 #[derive(Serialize)]
+pub struct SectionHeading {
+    pub chapter: i64,
+    pub verse_start: i64,
+    pub end_chapter: i64,
+    pub verse_end: i64,
+    pub heading: String,
+}
+
+#[derive(Serialize)]
 pub struct SearchHit {
     pub verse_ref_id: i64,
     pub book_id: i64,
@@ -112,6 +121,34 @@ pub fn get_chapter(
             chapter: r.get(1)?,
             verse: r.get(2)?,
             text: r.get(3)?,
+        })
+    })?
+    .collect()
+}
+
+/// Headings starting in this chapter, in reading order. ESV-only: the source
+/// data was parsed from ESV passage-heading files, so any other translation
+/// gets none rather than misattributed ESV headings.
+pub fn get_section_headings(
+    conn: &Connection,
+    book_id: i64,
+    chapter: i64,
+    translation: &str,
+) -> rusqlite::Result<Vec<SectionHeading>> {
+    if translation != "ESV" {
+        return Ok(Vec::new());
+    }
+    conn.prepare(
+        "SELECT chapter, verse_start, end_chapter, verse_end, heading \
+         FROM section_headings WHERE book_id = ?1 AND chapter = ?2 ORDER BY verse_start",
+    )?
+    .query_map((book_id, chapter), |r| {
+        Ok(SectionHeading {
+            chapter: r.get(0)?,
+            verse_start: r.get(1)?,
+            end_chapter: r.get(2)?,
+            verse_end: r.get(3)?,
+            heading: r.get(4)?,
         })
     })?
     .collect()

@@ -114,7 +114,10 @@ export function NotesPanel() {
           className="input w-[200px]"
           value={query}
           placeholder="Search notes…"
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            if (e.target.value.trim()) setDrawerOpen(true);
+          }}
         />
         <NotesFilterMenu
           tagQuery={tagQuery}

@@ -4,87 +4,92 @@
    as Tailwind classNames in its component instead of here. */
 @reference "./tokens.css";
 
-.input {
-  @apply bg-bg text-ink border border-border-strong rounded-[var(--radius-sm)] px-2 py-1 text-[length:var(--text-sm)] placeholder:text-muted;
-}
-.input:focus-visible {
-  @apply outline-none border-accent shadow-[0_0_0_2px_var(--accent-tint-strong)];
-}
+/* Layered so Tailwind utility classNames (e.g. hidden, @max-[…]:hidden) can
+   still override these — unlayered CSS always beats @layer rules regardless
+   of source order, which would otherwise make these primitives unbeatable. */
+@layer components {
+  .input {
+    @apply bg-bg text-ink border border-border-strong rounded-[var(--radius-sm)] px-2 py-1 text-[length:var(--text-sm)] placeholder:text-muted;
+  }
+  .input:focus-visible {
+    @apply outline-none border-accent shadow-[0_0_0_2px_var(--accent-tint-strong)];
+  }
 
-.iconbtn {
-  @apply inline-flex items-center justify-center w-[26px] h-[26px] border-0 rounded-[var(--radius-sm)] bg-transparent text-muted transition-colors duration-[var(--dur-fast)] ease-[var(--ease-standard)];
-}
-.iconbtn:hover {
-  @apply bg-accent-tint text-ink;
-}
-.iconbtn.is-active {
-  @apply text-accent bg-accent-tint;
-}
+  .iconbtn {
+    @apply inline-flex items-center justify-center w-[26px] h-[26px] border-0 rounded-[var(--radius-sm)] bg-transparent text-muted transition-colors duration-[var(--dur-fast)] ease-[var(--ease-standard)];
+  }
+  .iconbtn:hover {
+    @apply bg-accent-tint text-ink;
+  }
+  .iconbtn.is-active {
+    @apply text-accent bg-accent-tint;
+  }
 
-.menu {
-  @apply relative inline-flex h-full items-center;
-}
-.menu__list {
-  @apply absolute top-[calc(100%+4px)] min-w-[190px] p-1 bg-panel text-ink border border-border-strong rounded-[var(--radius-md)] shadow-[var(--shadow-2)] z-[var(--z-menu)];
-}
-.menu__list--left {
-  @apply left-0;
-}
-.menu__list--right {
-  @apply right-0;
-}
-.menu__item {
-  @apply flex items-center gap-2 w-full px-2 py-[6px] border-0 rounded-[var(--radius-sm)] bg-transparent text-inherit text-[length:var(--text-sm)] text-left whitespace-nowrap;
-}
-.menu__item:hover:not(:disabled) {
-  @apply bg-accent-tint;
-}
-.menu__item:disabled {
-  @apply opacity-45 cursor-default;
-}
-.menu__item.is-danger:hover:not(:disabled) {
-  @apply text-danger;
-}
-.menu__icon {
-  @apply inline-flex text-muted;
-}
+  .menu {
+    @apply relative inline-flex h-full items-center;
+  }
+  .menu__list {
+    @apply absolute top-[calc(100%+4px)] min-w-[190px] p-1 bg-panel text-ink border border-border-strong rounded-[var(--radius-md)] shadow-[var(--shadow-2)] z-[var(--z-menu)];
+  }
+  .menu__list--left {
+    @apply left-0;
+  }
+  .menu__list--right {
+    @apply right-0;
+  }
+  .menu__item {
+    @apply flex items-center gap-2 w-full px-2 py-[6px] border-0 rounded-[var(--radius-sm)] bg-transparent text-inherit text-[length:var(--text-sm)] text-left whitespace-nowrap;
+  }
+  .menu__item:hover:not(:disabled) {
+    @apply bg-accent-tint;
+  }
+  .menu__item:disabled {
+    @apply opacity-45 cursor-default;
+  }
+  .menu__item.is-danger:hover:not(:disabled) {
+    @apply text-danger;
+  }
+  .menu__icon {
+    @apply inline-flex text-muted;
+  }
 
-.panel {
-  @apply h-full flex flex-col bg-bg text-ink overflow-hidden;
-}
-.panel__scroll {
-  @apply flex-1 overflow-auto py-3 px-4;
-}
-.panel__muted {
-  @apply text-muted text-[length:var(--text-sm)] my-2;
-}
-.panel__error {
-  @apply text-danger font-[family-name:var(--font-mono)] text-[length:var(--text-xs)] whitespace-pre-wrap m-3;
-}
+  .panel {
+    @apply h-full flex flex-col bg-bg text-ink overflow-hidden;
+  }
+  .panel__scroll {
+    @apply flex-1 overflow-auto py-3 px-4;
+  }
+  .panel__muted {
+    @apply text-muted text-[length:var(--text-sm)] my-2;
+  }
+  .panel__error {
+    @apply text-danger font-[family-name:var(--font-mono)] text-[length:var(--text-xs)] whitespace-pre-wrap m-3;
+  }
 
-/* Reader/Notes shared header bar (Reader owns it; Notes reuses it verbatim).
+  /* Reader/Notes shared header bar (Reader owns it; Notes reuses it verbatim).
    mt-1 keeps it clear of the active tab's underline (box-shadow inset in
    tokens.css), which otherwise sits flush against this bar's top edge. */
-.reader__bar {
-  @apply flex items-center gap-2 h-[30px] mt-1 px-2 border-b border-border bg-panel shrink-0 grow-0;
-}
+  .reader__bar {
+    @apply flex items-center gap-2 h-[30px] mt-1 px-2 border-b border-border bg-panel shrink-0 grow-0;
+  }
 
-.seg {
-  @apply inline-flex border border-border rounded-[var(--radius-sm)] overflow-hidden;
-}
-.seg__btn {
-  @apply inline-flex items-center gap-1.5 px-3 py-[5px] border-0 bg-transparent text-muted text-[length:var(--text-sm)];
-}
-.seg__btn + .seg__btn {
-  @apply border-l border-border;
-}
-.seg__btn.is-on {
-  @apply bg-accent text-on-accent;
-}
+  .seg {
+    @apply inline-flex border border-border rounded-[var(--radius-sm)] overflow-hidden;
+  }
+  .seg__btn {
+    @apply inline-flex items-center gap-1.5 px-3 py-[5px] border-0 bg-transparent text-muted text-[length:var(--text-sm)];
+  }
+  .seg__btn + .seg__btn {
+    @apply border-l border-border;
+  }
+  .seg__btn.is-on {
+    @apply bg-accent text-on-accent;
+  }
 
-/* dockview-theme-vs is rendered internally by dockview-react — we don't
+  /* dockview-theme-vs is rendered internally by dockview-react — we don't
    control its className, so this bridge stays real CSS. */
-.dock-host > .dockview-theme-vs {
-  flex: 1;
-  min-width: 0;
+  .dock-host > .dockview-theme-vs {
+    flex: 1;
+    min-width: 0;
+  }
 }

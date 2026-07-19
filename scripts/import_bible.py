@@ -96,7 +96,117 @@ CREATE VIRTUAL TABLE verse_fts USING fts5(
   verse_ref_id UNINDEXED,
   translation_id UNINDEXED
 );
+
+-- ESV section/passage headings, parsed from db/esv_*_testament_headings.md.
+CREATE TABLE section_headings (
+  id INTEGER PRIMARY KEY,
+  book_id INTEGER NOT NULL REFERENCES books(id),
+  chapter INTEGER NOT NULL,
+  verse_start INTEGER NOT NULL,
+  end_chapter INTEGER NOT NULL,
+  verse_end INTEGER NOT NULL,
+  heading TEXT NOT NULL
+);
+CREATE INDEX idx_section_headings_loc ON section_headings(book_id, chapter);
 """
+
+HEADINGS_FILES = [
+    "esv_new_testament_headings.md",
+    "Torah_ESV_Headings.md",
+    "Historical_Books_ESV_Headings.md",
+    "Wisdom_Literature_ESV_Headings.md",
+    "Prophets_Headings_Part1.md",
+    "Prophets_Headings_Part2.md",
+]
+PSALMS_TITLES_FILE = "Psalms_Titles.md"
+# Psalms bullets in the general files above are structural notes ("Book I (1-41)"),
+# not real headings — the actual per-psalm titles come from PSALMS_TITLES_FILE.
+SKIP_HEADING_BOOKS = {"Psalms"}
+
+# "12" / "12a" -> (12, None); "3:12" / "3:12b" -> (3, 12). Trailing a/b half-verse
+# letters are dropped (verse_refs has no half-verse granularity).
+_REF_PART = re.compile(r"^(?:(\d+):)?(\d+)[ab]?$")
+
+
+def parse_headings_md(text: str):
+    """Yield (book_name, chapter, verse_start, end_chapter, verse_end, heading).
+
+    Bullets are either `* **Heading** (ref)` or `- Heading (ref)` — both styles
+    appear across the source files, so the bullet char and bold markers are optional.
+    """
+    bullet_re = re.compile(r"^[-*]\s+(.+?)\s+\(([^)]+)\)\s*$")
+    book = None
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith("## "):
+            book = line[3:].strip()
+            continue
+        m = bullet_re.match(line)
+        if not m or book is None or book in SKIP_HEADING_BOOKS:
+            continue
+        heading, ref = m.group(1).strip(), m.group(2)
+        if heading.startswith("**") and heading.endswith("**"):
+            heading = heading[2:-2]
+        parts = ref.split("–") if "–" in ref else ref.split("-")
+        start = _REF_PART.match(parts[0].strip())
+        if not start:
+            raise SystemExit(f"unparseable heading ref {ref!r} in {book} ({heading!r})")
+        start_chapter, start_verse = start.groups()
+        start_chapter = int(start_chapter) if start_chapter else 1
+        start_verse = int(start_verse)
+        if len(parts) == 1:
+            end_chapter, end_verse = start_chapter, start_verse
+        else:
+            end = _REF_PART.match(parts[1].strip())
+            if not end:
+                raise SystemExit(f"unparseable heading ref {ref!r} in {book} ({heading!r})")
+            end_chapter, end_verse = end.groups()
+            end_chapter = int(end_chapter) if end_chapter else start_chapter
+            end_verse = int(end_verse)
+        yield book, start_chapter, start_verse, end_chapter, end_verse, heading
+
+
+# "- Psalm 23: The LORD is my shepherd" -> (23, "The LORD is my shepherd").
+# The "## Book N" section dividers in this file are structural only, and ignored.
+_PSALM_LINE = re.compile(r"^-\s+Psalm\s+(\d+):\s*(.+)$")
+
+
+def parse_psalms_titles(text: str):
+    for line in text.splitlines():
+        m = _PSALM_LINE.match(line.strip())
+        if m:
+            yield int(m.group(1)), m.group(2).strip()
+
+
+def load_headings(db: sqlite3.Connection, root: Path) -> int:
+    book_id = {name: bid for bid, name in db.execute("SELECT id, name FROM books")}
+    rows = []
+    for fname in HEADINGS_FILES:
+        path = root / "db" / fname
+        text = path.read_text(encoding="utf-8")
+        for book, c1, v1, c2, v2, heading in parse_headings_md(text):
+            if book not in book_id:
+                raise SystemExit(f"unknown book {book!r} in {path.name}")
+            rows.append((book_id[book], c1, v1, c2, v2, heading))
+
+    psalms_id = book_id["Psalms"]
+    ptext = (root / "db" / PSALMS_TITLES_FILE).read_text(encoding="utf-8")
+    for chapter, heading in parse_psalms_titles(ptext):
+        verse_end = db.execute(
+            "SELECT MAX(verse) FROM verse_refs WHERE book_id=? AND chapter=?",
+            (psalms_id, chapter),
+        ).fetchone()[0]
+        if verse_end is None:
+            raise SystemExit(f"Psalm {chapter} not found in verse_refs")
+        rows.append((psalms_id, chapter, 1, chapter, verse_end, heading))
+
+    db.executemany(
+        "INSERT INTO section_headings (book_id, chapter, verse_start, end_chapter, verse_end, heading) "
+        "VALUES (?,?,?,?,?,?)",
+        rows,
+    )
+    db.commit()
+    return len(rows)
 
 
 def build(src: Path, out: Path, table: str) -> sqlite3.Connection:
@@ -170,6 +280,8 @@ def build(src: Path, out: Path, table: str) -> sqlite3.Connection:
     )
     db.commit()
     src_db.close()
+
+    load_headings(db, ROOT)
     return db
 
 
@@ -191,6 +303,12 @@ def selfcheck(db: sqlite3.Connection) -> None:
     assert john11 and john11[0].strip(), "John 1:1 ESV missing"
     # FTS actually matches.
     assert n("SELECT COUNT(*) FROM verse_fts WHERE verse_fts MATCH 'beginning'") > 0
+    # Section headings parsed from both testament files.
+    assert 1800 <= n("SELECT COUNT(*) FROM section_headings") <= 2800
+    john11_heading = db.execute(
+        "SELECT heading FROM section_headings WHERE book_id=43 AND chapter=1 AND verse_start=1"
+    ).fetchone()
+    assert john11_heading and john11_heading[0] == "The Word Became Flesh"
 
 
 def load_dotenv(path: Path) -> None:
@@ -236,7 +354,7 @@ def main() -> None:
     selfcheck(db)
     counts = {
         t: db.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
-        for t in ("books", "translations", "verse_refs", "verse_texts")
+        for t in ("books", "translations", "verse_refs", "verse_texts", "section_headings")
     }
     db.close()
     print(f"wrote {args.out}")

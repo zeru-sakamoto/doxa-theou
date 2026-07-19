@@ -34,6 +34,17 @@ fn get_chapter(
 }
 
 #[tauri::command]
+fn section_headings_for_chapter(
+    bible: State<'_, Bible>,
+    book_id: i64,
+    chapter: i64,
+    translation: String,
+) -> Result<Vec<db::SectionHeading>, String> {
+    let conn = bible.0.lock().map_err(|e| e.to_string())?;
+    db::get_section_headings(&conn, book_id, chapter, &translation).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn search(
     bible: State<'_, Bible>,
     query: String,
@@ -132,6 +143,7 @@ pub fn run() {
             list_books,
             list_translations,
             get_chapter,
+            section_headings_for_chapter,
             search,
             load_notes,
             save_note,
