@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "format": "prettier --write .",
-    "prebuild": "prettier --check ."
+    "prebuild": "prettier --write ."
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.2.7",

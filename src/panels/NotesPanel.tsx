@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { useNotes } from "../state/notes";
 import { formatReference, useWorkspace } from "../state/workspace";
 import { Menu } from "../workspace/Menu";
-import { MenuIcon, MoreIcon } from "../workspace/icons";
+import { CloseIcon, MenuIcon, MoreIcon } from "../workspace/icons";
 import { NotesColorMenu } from "./notes/NotesColorMenu";
 import { NotesDrawer } from "./notes/NotesDrawer";
 import { NotesEditor } from "./notes/NotesEditor";
@@ -18,8 +18,9 @@ export function NotesPanel() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [anchorDraft, setAnchorDraft] = useState<string | null>(null);
+  const [tagDraft, setTagDraft] = useState("");
   const [query, setQuery] = useState("");
-  const [tagQuery, setTagQuery] = useState("");
+  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
   const [bookIds, setBookIds] = useState<Set<number>>(new Set());
 
   const selectedNote = notes.find((n) => n.id === selectedId) ?? null;
@@ -55,6 +56,20 @@ export function NotesPanel() {
     }));
   }
 
+  function addTag(value: string) {
+    const v = value.trim().replace(/^-+|-+$/g, "");
+    if (v && selectedNote && !selectedNote.tags.includes(v))
+      updateNote(selectedNote.id, (n) => ({ tags: [...n.tags, v] }));
+    setTagDraft("");
+  }
+
+  function removeTag(tag: string) {
+    if (!selectedNote) return;
+    updateNote(selectedNote.id, (n) => ({
+      tags: n.tags.filter((t) => t !== tag),
+    }));
+  }
+
   function updateColor(color: string | undefined) {
     if (!selectedNote) return;
     updateNote(selectedNote.id, { color });
@@ -69,9 +84,27 @@ export function NotesPanel() {
     });
   }
 
+  function toggleTag(tag: string) {
+    setSelectedTags((prev) => {
+      const next = new Set(prev);
+      next.has(tag) ? next.delete(tag) : next.add(tag);
+      return next;
+    });
+  }
+
+  function clearFilters() {
+    setSelectedTags(new Set());
+    setBookIds(new Set());
+  }
+
+  const allTags = useMemo(() => {
+    const set = new Set<string>();
+    for (const n of notes) for (const t of n.tags) set.add(t);
+    return Array.from(set).sort();
+  }, [notes]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const tq = tagQuery.trim().toLowerCase();
     const selectedBooks =
       bookIds.size > 0 ? ws.books.filter((b) => bookIds.has(b.id)) : [];
 
@@ -82,7 +115,7 @@ export function NotesPanel() {
             `${n.title} ${n.tags.join(" ")} ${n.body}`.toLowerCase();
           if (!haystack.includes(q)) return false;
         }
-        if (tq && !n.tags.some((t) => t.toLowerCase().includes(tq)))
+        if (selectedTags.size > 0 && !n.tags.some((t) => selectedTags.has(t)))
           return false;
         if (
           selectedBooks.length > 0 &&
@@ -96,7 +129,7 @@ export function NotesPanel() {
         return true;
       })
       .sort((a, b) => (a.modified < b.modified ? 1 : -1));
-  }, [notes, query, tagQuery, bookIds, ws.books]);
+  }, [notes, query, selectedTags, bookIds, ws.books]);
 
   return (
     <div className="panel">
@@ -120,11 +153,13 @@ export function NotesPanel() {
           }}
         />
         <NotesFilterMenu
-          tagQuery={tagQuery}
-          onTagQueryChange={setTagQuery}
+          tags={allTags}
+          selectedTags={selectedTags}
+          onToggleTag={toggleTag}
           books={ws.books}
           selectedBookIds={bookIds}
           onToggleBook={toggleBook}
+          onClear={clearFilters}
         />
         <div className="flex items-center gap-2 ml-auto">
           {selectedNote && (
@@ -182,6 +217,49 @@ export function NotesPanel() {
           )}
         </div>
       </div>
+
+      {selectedNote && (
+        <div className="p-2 border-t border-border bg-panel shrink-0">
+          <div className="flex flex-nowrap focus-within:flex-wrap justify-end focus-within:justify-start items-center gap-1.5 px-2 py-1 h-[30px] focus-within:h-auto overflow-hidden focus-within:overflow-visible rounded-(--radius-sm) border border-border-strong bg-bg focus-within:border-accent focus-within:shadow-[0_0_0_2px_var(--accent-tint-strong)]">
+            {selectedNote.tags.map((t) => (
+              <span
+                key={t}
+                className="flex items-center gap-1 py-px pl-1.5 pr-1 rounded-full bg-accent-tint text-accent text-(length:--text-2xs)"
+              >
+                {t}
+                <button
+                  type="button"
+                  className="flex items-center justify-center rounded-(--radius-full) text-accent hover:text-ink"
+                  title={`Remove tag ${t}`}
+                  aria-label={`Remove tag ${t}`}
+                  onClick={() => removeTag(t)}
+                >
+                  <CloseIcon size={10} />
+                </button>
+              </span>
+            ))}
+            <input
+              className="flex-1 min-w-[100px] border-0 bg-transparent text-ink placeholder:text-muted text-(length:--text-sm) py-0.5"
+              style={{ outline: "none" }}
+              value={tagDraft}
+              placeholder="Add tag…"
+              onChange={(e) => setTagDraft(e.target.value.replace(/\s+/g, "-"))}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  addTag(tagDraft);
+                } else if (
+                  e.key === "Backspace" &&
+                  tagDraft === "" &&
+                  selectedNote.tags.length > 0
+                ) {
+                  e.preventDefault();
+                  removeTag(selectedNote.tags[selectedNote.tags.length - 1]);
+                }
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

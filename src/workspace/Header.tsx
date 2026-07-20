@@ -78,16 +78,12 @@ export function Header() {
     : [{ label: "Loading translations…", disabled: true, onSelect: () => {} }];
 
   const layoutItems: MenuAction[] = [
-    { label: "Add Reader", onSelect: () => dock.openReader() },
-    { label: "Add Notes", onSelect: () => dock.openNotes() },
-    { label: "Add Search", onSelect: () => dock.openSingleton("search") },
     { label: "Save layout", onSelect: () => dock.saveLayout() },
     { label: "Reset layout", danger: true, onSelect: () => dock.resetLayout() },
   ];
 
   const hbtn =
     "inline-flex items-center gap-1.5 h-7 px-2 rounded-(--radius-sm) bg-transparent text-ink text-(length:--text-sm) whitespace-nowrap transition-colors duration-(--dur-fast) ease-(--ease-standard) hover:bg-accent-tint active:bg-accent-tint-strong";
-  const hbtnLabel = "max-[1024px]:hidden";
   const wbtn =
     "inline-flex items-center justify-center w-11 border-0 bg-transparent text-muted transition-colors duration-(--dur-fast) ease-(--ease-standard) hover:bg-accent-tint hover:text-ink";
 
@@ -130,8 +126,7 @@ export function Header() {
         align="left"
         items={layoutItems}
       >
-        <LayoutIcon size={16} />
-        <span className={hbtnLabel}>Layout</span>
+        <LayoutIcon size={19} strokeWidth={2.25} />
       </Menu>
 
       <div className="flex-1 self-stretch" data-tauri-drag-region />
@@ -143,25 +138,18 @@ export function Header() {
           align="right"
           items={readerItems}
         >
-          <BookIcon size={16} />
-          <span className={hbtnLabel}>Bible reader</span>
-          <ChevronDownIcon size={13} />
+          <BookIcon size={19} strokeWidth={2.25} />
+          <ChevronDownIcon size={14} strokeWidth={2.25} />
         </Menu>
-        <button
-          className={hbtn}
-          onClick={() => dock.openNotes()}
-          title="Notes"
-        >
-          <NotesIcon size={16} />
-          <span className={hbtnLabel}>Notes</span>
+        <button className={hbtn} onClick={() => dock.openNotes()} title="Notes">
+          <NotesIcon size={19} strokeWidth={2.25} />
         </button>
         <button
           className={hbtn}
           onClick={() => dock.openSingleton("settings")}
           title="Settings"
         >
-          <SettingsIcon size={16} />
-          <span className={hbtnLabel}>Settings</span>
+          <SettingsIcon size={19} strokeWidth={2.25} />
         </button>
 
         <div className="flex items-stretch h-full ml-1">

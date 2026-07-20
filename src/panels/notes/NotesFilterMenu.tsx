@@ -1,26 +1,30 @@
-// Filter popover for the Notes header: by tag (free text) or by book
-// (multi-select). Modeled on workspace/Menu's trigger + outside-click/Escape
+// Filter popover for the Notes header: by tag or by book, both
+// multi-select. Modeled on workspace/Menu's trigger + outside-click/Escape
 // shell, but Menu only renders a flat action list — this needs a custom
-// body (text input / button grid), so it isn't reused directly.
+// body (button list/grid), so it isn't reused directly.
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import type { Book } from "../../api";
 import { FilterIcon } from "../../workspace/icons";
 
 interface Props {
-  tagQuery: string;
-  onTagQueryChange: (v: string) => void;
+  tags: string[];
+  selectedTags: Set<string>;
+  onToggleTag: (tag: string) => void;
   books: Book[];
   selectedBookIds: Set<number>;
   onToggleBook: (id: number) => void;
+  onClear: () => void;
 }
 
 export function NotesFilterMenu({
-  tagQuery,
-  onTagQueryChange,
+  tags,
+  selectedTags,
+  onToggleTag,
   books,
   selectedBookIds,
   onToggleBook,
+  onClear,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"tags" | "books">("tags");
@@ -42,7 +46,7 @@ export function NotesFilterMenu({
     };
   }, [open]);
 
-  const active = tagQuery.trim() !== "" || selectedBookIds.size > 0;
+  const active = selectedTags.size > 0 || selectedBookIds.size > 0;
 
   return (
     <div className="menu" ref={ref}>
@@ -65,34 +69,57 @@ export function NotesFilterMenu({
             exit={reduce ? { opacity: 0 } : { opacity: 0, y: -4 }}
             transition={{ duration: 0.12 }}
           >
-            <div
-              className="seg self-start"
-              role="group"
-              aria-label="Filter mode"
-            >
+            <div className="flex items-center justify-between gap-2">
+              <div className="seg" role="group" aria-label="Filter mode">
+                <button
+                  type="button"
+                  className={"seg__btn" + (mode === "tags" ? " is-on" : "")}
+                  onClick={() => setMode("tags")}
+                >
+                  Tags
+                </button>
+                <button
+                  type="button"
+                  className={"seg__btn" + (mode === "books" ? " is-on" : "")}
+                  onClick={() => setMode("books")}
+                >
+                  Books
+                </button>
+              </div>
               <button
                 type="button"
-                className={"seg__btn" + (mode === "tags" ? " is-on" : "")}
-                onClick={() => setMode("tags")}
+                disabled={!active}
+                className="font-(family-name:--font-mono) text-(length:--text-2xs) text-muted hover:text-accent disabled:opacity-40 disabled:hover:text-muted"
+                onClick={onClear}
               >
-                Tags
-              </button>
-              <button
-                type="button"
-                className={"seg__btn" + (mode === "books" ? " is-on" : "")}
-                onClick={() => setMode("books")}
-              >
-                Books
+                Clear
               </button>
             </div>
             {mode === "tags" ? (
-              <input
-                className="input w-full"
-                value={tagQuery}
-                placeholder="Filter by tag…"
-                onChange={(e) => onTagQueryChange(e.target.value)}
-                autoFocus
-              />
+              <div className="flex flex-col gap-1 max-h-[260px] overflow-auto">
+                {tags.length === 0 ? (
+                  <p className="panel__muted">No tags yet.</p>
+                ) : (
+                  tags.map((t) => {
+                    const active = selectedTags.has(t);
+                    return (
+                      <button
+                        key={t}
+                        type="button"
+                        className={
+                          "w-full text-left py-[3px] px-2 border rounded-(--radius-sm) font-(family-name:--font-mono) text-(length:--text-xs)" +
+                          (active
+                            ? " bg-accent border-accent text-on-accent"
+                            : " bg-transparent border-border text-muted hover:border-accent hover:text-accent hover:bg-accent-tint")
+                        }
+                        onClick={() => onToggleTag(t)}
+                      >
+                        {t}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
             ) : (
               <div className="max-h-[260px] overflow-auto">
                 {(
