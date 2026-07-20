@@ -73,7 +73,7 @@ export const listTranslations = () =>
 export const search = (query: string, translation?: string) =>
   invoke<SearchHit[]>("search", { query, translation });
 
-// ponytail: bounded FIFO cache over get_chapter — one chapter is a few KB, so
+// Bounded FIFO cache over get_chapter — one chapter is a few KB, so
 // keeping the last two dozen makes Reader back/forth and anchor previews free
 // (no IPC/SQLite round-trip) at near-zero memory. Insertion order = eviction
 // order (Map keeps it). Verse text is immutable, so entries never go stale.
@@ -101,7 +101,7 @@ export const getChapter = async (
   return verses;
 };
 
-// ponytail: same bounded-cache shape as chapterCache — headings are immutable
+// Same bounded-cache shape as chapterCache — headings are immutable
 // per (book, chapter, translation) too, just a separate table/query on the Rust side.
 const headingsCache = new Map<string, SectionHeading[]>();
 
@@ -135,7 +135,7 @@ export const deleteNote = (id: string, folder: string | null) =>
 export const notesForChapter = (bookId: number, chapter: number) =>
   invoke<ChapterNote[]>("notes_for_chapter", { bookId, chapter });
 
-// ponytail: canonical chapter counts for the 66-book Protestant canon, indexed
+// Canonical chapter counts for the 66-book Protestant canon, indexed
 // by book id (1..66). Fixed across the imported translations (ESV/NASB/NKJV/AMP/
 // NIV) — no backend query needed. If a version's versification ever differs,
 // add a max(chapter) command in db.rs and load counts from it instead.

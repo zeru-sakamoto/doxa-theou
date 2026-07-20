@@ -72,7 +72,7 @@ export function Header() {
 
   const readerItems: MenuAction[] = ws.translations.length
     ? ws.translations.map((t) => ({
-        label: `${t.code} — ${t.name}`,
+        label: `${t.code} — ${t.name}${t.is_default ? " (default)" : ""}`,
         onSelect: () => dock.openReader(t.code),
       }))
     : [{ label: "Loading translations…", disabled: true, onSelect: () => {} }];

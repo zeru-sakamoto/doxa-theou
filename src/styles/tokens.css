@@ -126,6 +126,7 @@
   --text-read: 18px; /* verse/body */
   --text-xl: 20px;
   --text-2xl: 24px;
+  --text-3xl: 32px; /* single-moment display use (e.g. loading wordmark) */
 
   /* Weights & line-heights */
   --fw-regular: 400;

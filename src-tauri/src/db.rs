@@ -88,7 +88,7 @@ pub fn list_books(conn: &Connection) -> rusqlite::Result<Vec<Book>> {
 }
 
 pub fn list_translations(conn: &Connection) -> rusqlite::Result<Vec<Translation>> {
-    conn.prepare("SELECT id, code, name, license, is_default FROM translations ORDER BY is_default DESC, code")?
+    conn.prepare("SELECT id, code, name, license, is_default FROM translations ORDER BY code")?
         .query_map([], |r| {
             Ok(Translation {
                 id: r.get(0)?,
@@ -126,23 +126,21 @@ pub fn get_chapter(
     .collect()
 }
 
-/// Headings starting in this chapter, in reading order. ESV-only: the source
-/// data was parsed from ESV passage-heading files, so any other translation
-/// gets none rather than misattributed ESV headings.
+/// Headings starting in this chapter, in reading order, for the given translation.
 pub fn get_section_headings(
     conn: &Connection,
     book_id: i64,
     chapter: i64,
     translation: &str,
 ) -> rusqlite::Result<Vec<SectionHeading>> {
-    if translation != "ESV" {
-        return Ok(Vec::new());
-    }
     conn.prepare(
-        "SELECT chapter, verse_start, end_chapter, verse_end, heading \
-         FROM section_headings WHERE book_id = ?1 AND chapter = ?2 ORDER BY verse_start",
+        "SELECT sh.chapter, sh.verse_start, sh.end_chapter, sh.verse_end, sh.heading \
+         FROM section_headings sh \
+         JOIN translations t ON t.id = sh.translation_id \
+         WHERE sh.book_id = ?1 AND sh.chapter = ?2 AND t.code = ?3 \
+         ORDER BY sh.verse_start, sh.id",
     )?
-    .query_map((book_id, chapter), |r| {
+    .query_map((book_id, chapter, translation), |r| {
         Ok(SectionHeading {
             chapter: r.get(0)?,
             verse_start: r.get(1)?,
@@ -155,7 +153,7 @@ pub fn get_section_headings(
 }
 
 /// FTS5 search ordered by bm25 (lower = better). `translation` None searches all.
-// ponytail: raw MATCH passthrough. A stray `"` in the query is an FTS syntax error
+// Raw MATCH passthrough. A stray `"` in the query is an FTS syntax error
 // surfaced to the caller; quote/sanitize the input if that becomes a problem.
 pub fn search(
     conn: &Connection,

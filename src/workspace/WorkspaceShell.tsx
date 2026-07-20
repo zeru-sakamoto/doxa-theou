@@ -3,6 +3,7 @@ import { useWorkspace } from "../state/workspace";
 import { CommandPalette } from "./CommandPalette";
 import { DockProvider, Dockview } from "./dock";
 import { Header } from "./Header";
+import { LoadingScreen } from "./LoadingScreen";
 import { StatusBar } from "./StatusBar";
 
 export function WorkspaceShell() {
@@ -22,6 +23,8 @@ export function WorkspaceShell() {
               </pre>
             </div>
           </div>
+        ) : !ws.ready ? (
+          <LoadingScreen />
         ) : (
           <Dockview />
         )}

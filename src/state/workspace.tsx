@@ -1,6 +1,6 @@
 // Shared workspace state: theme + canonical data (books/translations) + the
 // active reference/translation the status bar and Cmd-K reflect.
-// ponytail: React context is plenty for this. Reach for a store lib only if
+// React context is plenty for this. Reach for a store lib only if
 // cross-panel state actually gets unwieldy.
 import {
   createContext,
@@ -110,7 +110,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     Promise.all([listBooks(), listTranslations()])
       .then(([bs, ts]) => {
         setBooks(bs);
-        setTranslations(ts);
+        setTranslations([...ts].sort((a, b) => a.code.localeCompare(b.code)));
         setActiveTranslation(
           ts.find((t) => t.is_default)?.code ?? ts[0]?.code ?? "ESV",
         );

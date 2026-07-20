@@ -1,5 +1,5 @@
 // Hand-rolled SVG icons (lucide-derived paths), stroke = currentColor.
-// ponytail: ~14 inline icons instead of an icon-library dependency.
+// ~14 inline icons instead of an icon-library dependency.
 import type { SVGProps } from "react";
 
 function Svg({

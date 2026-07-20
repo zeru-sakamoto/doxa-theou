@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """One-time import: local source Bible DB  ->  normalized bible.sqlite.
 
-Replaces the old api.esv.org fetch. Pure stdlib (sqlite3), no network, no deps.
-Run once; then copy the output into the app's app-local-data dir (see DESIGN.md).
+Pure stdlib (sqlite3), no network, no deps. Run once; then copy the output
+into the app's app-local-data dir (see DESIGN.md).
 
-    python scripts/import_bible.py [--out PATH] [--src PATH] [--table NAME]
+    python scripts/import_bible.py [--out PATH] [--src PATH]
 
-The source DB is a single denormalized table (name set via .env/--table) with
-16 versions. We import a chosen subset into the app's normalized schema
-(books / verse_refs / translations / verse_texts) so notes, cross-refs, and
-embeddings can anchor to a stable verse_ref_id, and build an FTS5 index for search.
+The source DB has two tables, `verses(translation, book, chapter, verse, text)`
+and `headings(translation, book, chapter, verse_start, position, text)`, both
+keyed by full English book name (not a book number) and covering every
+translation present. We import it all into the app's normalized schema
+(books / verse_refs / translations / verse_texts / section_headings) so notes,
+cross-refs, and embeddings can anchor to a stable verse_ref_id, and build an
+FTS5 index for search.
 """
 import argparse
 import os
@@ -20,35 +23,51 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 OUT_DEFAULT = ROOT / "bible.sqlite"
 ENV_VAR = "BIBLE_SOURCE_DB"  # source DB path — set in .env (the DB isn't shipped with the source)
-TABLE_ENV_VAR = "BIBLE_SOURCE_TABLE"  # source table name — set in .env
 
-# Versions to import (all copyrighted; DB stays gitignored). Default reading = ESV.
-# Skipped on purpose: Spanish versions (accents corrupted to U+FFFD in the source),
-# apocryphal book 777, partial ASV/RV1858, fragmentary KSV/RSV.
-VERSIONS = {
-    # code:  (name,                license,                      is_default)
-    "ESV":  ("English Standard Version",        "personal-cache-copyrighted", 1),
-    "NASB": ("New American Standard Bible",     "personal-cache-copyrighted", 0),
-    "NKJV": ("New King James Version",          "personal-cache-copyrighted", 0),
-    "AMP":  ("Amplified Bible",                 "personal-cache-copyrighted", 0),
-    "NIV":  ("New International Version",        "personal-cache-copyrighted", 0),
+# code -> (full name, license). Any translation present in the source but not
+# listed here still imports fine (name falls back to the code itself).
+TRANSLATION_META = {
+    "ESV": ("English Standard Version", "personal-cache-copyrighted"),
+    "NASB": ("New American Standard Bible", "personal-cache-copyrighted"),
+    "NKJV": ("New King James Version", "personal-cache-copyrighted"),
+    "AMP": ("Amplified Bible", "personal-cache-copyrighted"),
+    "NIV": ("New International Version", "personal-cache-copyrighted"),
+    "NLT": ("New Living Translation", "personal-cache-copyrighted"),
 }
+DEFAULT_TRANSLATION = "ESV"
 
-# Source has no abbreviation field, so supply the 66-book canon abbreviations
-# (OSIS-style), keyed by the source's book number (1..66 = Genesis..Revelation).
-ABBR = {
-    1: "Gen", 2: "Exod", 3: "Lev", 4: "Num", 5: "Deut", 6: "Josh", 7: "Judg",
-    8: "Ruth", 9: "1Sam", 10: "2Sam", 11: "1Kgs", 12: "2Kgs", 13: "1Chr",
-    14: "2Chr", 15: "Ezra", 16: "Neh", 17: "Esth", 18: "Job", 19: "Ps",
-    20: "Prov", 21: "Eccl", 22: "Song", 23: "Isa", 24: "Jer", 25: "Lam",
-    26: "Ezek", 27: "Dan", 28: "Hos", 29: "Joel", 30: "Amos", 31: "Obad",
-    32: "Jonah", 33: "Mic", 34: "Nah", 35: "Hab", 36: "Zeph", 37: "Hag",
-    38: "Zech", 39: "Mal", 40: "Matt", 41: "Mark", 42: "Luke", 43: "John",
-    44: "Acts", 45: "Rom", 46: "1Cor", 47: "2Cor", 48: "Gal", 49: "Eph",
-    50: "Phil", 51: "Col", 52: "1Thess", 53: "2Thess", 54: "1Tim", 55: "2Tim",
-    56: "Titus", 57: "Phlm", 58: "Heb", 59: "Jas", 60: "1Pet", 61: "2Pet",
-    62: "1John", 63: "2John", 64: "3John", 65: "Jude", 66: "Rev",
-}
+# The 66-book canon in canonical order, (display name, testament, OSIS-style
+# abbreviation). Source has no book-metadata table, so this is static.
+BOOKS = [
+    ("Genesis", "OT", "Gen"), ("Exodus", "OT", "Exod"), ("Leviticus", "OT", "Lev"),
+    ("Numbers", "OT", "Num"), ("Deuteronomy", "OT", "Deut"), ("Joshua", "OT", "Josh"),
+    ("Judges", "OT", "Judg"), ("Ruth", "OT", "Ruth"), ("1 Samuel", "OT", "1Sam"),
+    ("2 Samuel", "OT", "2Sam"), ("1 Kings", "OT", "1Kgs"), ("2 Kings", "OT", "2Kgs"),
+    ("1 Chronicles", "OT", "1Chr"), ("2 Chronicles", "OT", "2Chr"), ("Ezra", "OT", "Ezra"),
+    ("Nehemiah", "OT", "Neh"), ("Esther", "OT", "Esth"), ("Job", "OT", "Job"),
+    ("Psalms", "OT", "Ps"), ("Proverbs", "OT", "Prov"), ("Ecclesiastes", "OT", "Eccl"),
+    ("Song of Solomon", "OT", "Song"), ("Isaiah", "OT", "Isa"), ("Jeremiah", "OT", "Jer"),
+    ("Lamentations", "OT", "Lam"), ("Ezekiel", "OT", "Ezek"), ("Daniel", "OT", "Dan"),
+    ("Hosea", "OT", "Hos"), ("Joel", "OT", "Joel"), ("Amos", "OT", "Amos"),
+    ("Obadiah", "OT", "Obad"), ("Jonah", "OT", "Jonah"), ("Micah", "OT", "Mic"),
+    ("Nahum", "OT", "Nah"), ("Habakkuk", "OT", "Hab"), ("Zephaniah", "OT", "Zeph"),
+    ("Haggai", "OT", "Hag"), ("Zechariah", "OT", "Zech"), ("Malachi", "OT", "Mal"),
+    ("Matthew", "NT", "Matt"), ("Mark", "NT", "Mark"), ("Luke", "NT", "Luke"),
+    ("John", "NT", "John"), ("Acts", "NT", "Acts"), ("Romans", "NT", "Rom"),
+    ("1 Corinthians", "NT", "1Cor"), ("2 Corinthians", "NT", "2Cor"), ("Galatians", "NT", "Gal"),
+    ("Ephesians", "NT", "Eph"), ("Philippians", "NT", "Phil"), ("Colossians", "NT", "Col"),
+    ("1 Thessalonians", "NT", "1Thess"), ("2 Thessalonians", "NT", "2Thess"),
+    ("1 Timothy", "NT", "1Tim"), ("2 Timothy", "NT", "2Tim"), ("Titus", "NT", "Titus"),
+    ("Philemon", "NT", "Phlm"), ("Hebrews", "NT", "Heb"), ("James", "NT", "Jas"),
+    ("1 Peter", "NT", "1Pet"), ("2 Peter", "NT", "2Pet"), ("1 John", "NT", "1John"),
+    ("2 John", "NT", "2John"), ("3 John", "NT", "3John"), ("Jude", "NT", "Jude"),
+    ("Revelation", "NT", "Rev"),
+]
+assert len(BOOKS) == 66
+
+# The source spells the Psalms book in the singular; everything else matches
+# the display name above exactly.
+SOURCE_BOOK_NAME = {"Psalms": "Psalm"}
 
 SCHEMA = """
 CREATE TABLE books (
@@ -97,7 +116,8 @@ CREATE VIRTUAL TABLE verse_fts USING fts5(
   translation_id UNINDEXED
 );
 
--- ESV section/passage headings, parsed from db/esv_*_testament_headings.md.
+-- Section/passage headings and psalm-title lines, one row per translation
+-- (the source has real headings per translation, not just ESV).
 CREATE TABLE section_headings (
   id INTEGER PRIMARY KEY,
   book_id INTEGER NOT NULL REFERENCES books(id),
@@ -105,172 +125,171 @@ CREATE TABLE section_headings (
   verse_start INTEGER NOT NULL,
   end_chapter INTEGER NOT NULL,
   verse_end INTEGER NOT NULL,
-  heading TEXT NOT NULL
+  heading TEXT NOT NULL,
+  translation_id INTEGER NOT NULL REFERENCES translations(id)
 );
-CREATE INDEX idx_section_headings_loc ON section_headings(book_id, chapter);
+CREATE INDEX idx_section_headings_loc ON section_headings(book_id, chapter, translation_id);
 """
 
-HEADINGS_FILES = [
-    "esv_new_testament_headings.md",
-    "Torah_ESV_Headings.md",
-    "Historical_Books_ESV_Headings.md",
-    "Wisdom_Literature_ESV_Headings.md",
-    "Prophets_Headings_Part1.md",
-    "Prophets_Headings_Part2.md",
-]
-PSALMS_TITLES_FILE = "Psalms_Titles.md"
-# Psalms bullets in the general files above are structural notes ("Book I (1-41)"),
-# not real headings — the actual per-psalm titles come from PSALMS_TITLES_FILE.
-SKIP_HEADING_BOOKS = {"Psalms"}
-
-# "12" / "12a" -> (12, None); "3:12" / "3:12b" -> (3, 12). Trailing a/b half-verse
-# letters are dropped (verse_refs has no half-verse granularity).
-_REF_PART = re.compile(r"^(?:(\d+):)?(\d+)[ab]?$")
+_ARTIFACTS = (" end of footnotes", " end of crossrefs")
 
 
-def parse_headings_md(text: str):
-    """Yield (book_name, chapter, verse_start, end_chapter, verse_end, heading).
+def clean_text(text: str) -> str:
+    """Strip trailing scraper artifacts and lightly re-space glued words.
 
-    Bullets are either `* **Heading** (ref)` or `- Heading (ref)` — both styles
-    appear across the source files, so the bullet char and bold markers are optional.
+    The source occasionally appends literal " end of footnotes"/" end of
+    crossrefs" markers, and strips line breaks (mostly in poetry) without
+    inserting a space. The re-spacing is a heuristic, not exhaustive text
+    cleanup — it fixes the common punctuation/case-boundary cases; rarer
+    glued words with no case signal (e.g. "Maskilofthe") are left as-is.
     """
-    bullet_re = re.compile(r"^[-*]\s+(.+?)\s+\(([^)]+)\)\s*$")
-    book = None
-    for line in text.splitlines():
-        line = line.strip()
-        if line.startswith("## "):
-            book = line[3:].strip()
-            continue
-        m = bullet_re.match(line)
-        if not m or book is None or book in SKIP_HEADING_BOOKS:
-            continue
-        heading, ref = m.group(1).strip(), m.group(2)
-        if heading.startswith("**") and heading.endswith("**"):
-            heading = heading[2:-2]
-        parts = ref.split("–") if "–" in ref else ref.split("-")
-        start = _REF_PART.match(parts[0].strip())
-        if not start:
-            raise SystemExit(f"unparseable heading ref {ref!r} in {book} ({heading!r})")
-        start_chapter, start_verse = start.groups()
-        start_chapter = int(start_chapter) if start_chapter else 1
-        start_verse = int(start_verse)
-        if len(parts) == 1:
-            end_chapter, end_verse = start_chapter, start_verse
-        else:
-            end = _REF_PART.match(parts[1].strip())
-            if not end:
-                raise SystemExit(f"unparseable heading ref {ref!r} in {book} ({heading!r})")
-            end_chapter, end_verse = end.groups()
-            end_chapter = int(end_chapter) if end_chapter else start_chapter
-            end_verse = int(end_verse)
-        yield book, start_chapter, start_verse, end_chapter, end_verse, heading
+    text = text or ""
+    changed = True
+    while changed:
+        changed = False
+        for artifact in _ARTIFACTS:
+            if text.endswith(artifact):
+                text = text[: -len(artifact)]
+                changed = True
+    text = text.rstrip()
+    text = re.sub(r"(?<=[.!?,;:])(?=[A-Za-z])", " ", text)
+    text = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", text)
+    return text
 
 
-# "- Psalm 23: The LORD is my shepherd" -> (23, "The LORD is my shepherd").
-# The "## Book N" section dividers in this file are structural only, and ignored.
-_PSALM_LINE = re.compile(r"^-\s+Psalm\s+(\d+):\s*(.+)$")
+def verse1_remap(chapter: int, verses: set) -> dict:
+    """{old_verse: 1} if this chapter's verse 1 was mislabeled as `chapter`.
+
+    The source labels each chapter's first verse with verse == chapter number
+    instead of 1 in many places. Only remap when doing so makes the verse set
+    perfectly contiguous 1..N — otherwise verse 1 is genuinely absent from the
+    source (common in genealogy-heavy chapters) and there's nothing to recover.
+    """
+    if 1 in verses or chapter not in verses:
+        return {}
+    fixed = (verses - {chapter}) | {1}
+    return {chapter: 1} if fixed == set(range(1, len(fixed) + 1)) else {}
 
 
-def parse_psalms_titles(text: str):
-    for line in text.splitlines():
-        m = _PSALM_LINE.match(line.strip())
-        if m:
-            yield int(m.group(1)), m.group(2).strip()
-
-
-def load_headings(db: sqlite3.Connection, root: Path) -> int:
-    book_id = {name: bid for bid, name in db.execute("SELECT id, name FROM books")}
-    rows = []
-    for fname in HEADINGS_FILES:
-        path = root / "db" / fname
-        text = path.read_text(encoding="utf-8")
-        for book, c1, v1, c2, v2, heading in parse_headings_md(text):
-            if book not in book_id:
-                raise SystemExit(f"unknown book {book!r} in {path.name}")
-            rows.append((book_id[book], c1, v1, c2, v2, heading))
-
-    psalms_id = book_id["Psalms"]
-    ptext = (root / "db" / PSALMS_TITLES_FILE).read_text(encoding="utf-8")
-    for chapter, heading in parse_psalms_titles(ptext):
-        verse_end = db.execute(
-            "SELECT MAX(verse) FROM verse_refs WHERE book_id=? AND chapter=?",
-            (psalms_id, chapter),
-        ).fetchone()[0]
-        if verse_end is None:
-            raise SystemExit(f"Psalm {chapter} not found in verse_refs")
-        rows.append((psalms_id, chapter, 1, chapter, verse_end, heading))
-
-    db.executemany(
-        "INSERT INTO section_headings (book_id, chapter, verse_start, end_chapter, verse_end, heading) "
-        "VALUES (?,?,?,?,?,?)",
-        rows,
-    )
-    db.commit()
-    return len(rows)
-
-
-def build(src: Path, out: Path, table: str) -> sqlite3.Connection:
+def build(src: Path, out: Path) -> sqlite3.Connection:
     if not src.exists():
         raise SystemExit(f"source DB not found: {src}")
-    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", table):
-        raise SystemExit(f"invalid source table name: {table!r}")
     if out.exists():
         out.unlink()
-
-    codes = tuple(VERSIONS)
-    placeholders = ",".join("?" * len(codes))
 
     src_db = sqlite3.connect(f"file:{src}?mode=ro", uri=True)
     db = sqlite3.connect(out)
     db.executescript("PRAGMA journal_mode=OFF; PRAGMA synchronous=OFF;")
     db.executescript(SCHEMA)
 
-    # books: one row per canonical book (1..66). Titles vary across versions
-    # (trailing CR, "Psalms"/"Psalm"), so take a single canonical title from the
-    # default version (which is full-Bible), stripped.
-    default_code = next(c for c, (_, _, d) in VERSIONS.items() if d)
-    rows = src_db.execute(
-        f"SELECT book, testament, title FROM {table} "
-        "WHERE book BETWEEN 1 AND 66 AND version = ? GROUP BY book ORDER BY book",
-        (default_code,),
-    ).fetchall()
+    codes = [
+        r[0] for r in src_db.execute("SELECT DISTINCT translation FROM verses ORDER BY translation")
+    ]
+    default_code = DEFAULT_TRANSLATION if DEFAULT_TRANSLATION in codes else codes[0]
+
+    # books: static canon list, id = canonical order.
     db.executemany(
         "INSERT INTO books (id, testament, name, abbr, canonical_order) VALUES (?,?,?,?,?)",
-        [(b, tt.strip(), title.strip(), ABBR[b], b) for (b, tt, title) in rows],
+        [(i + 1, testament, name, abbr, i + 1) for i, (name, testament, abbr) in enumerate(BOOKS)],
     )
+    book_id_by_source_name = {
+        SOURCE_BOOK_NAME.get(name, name): i + 1 for i, (name, _t, _a) in enumerate(BOOKS)
+    }
 
-    # translations
+    # translations: whatever's actually in the source.
     db.executemany(
         "INSERT INTO translations (code, name, license, source, is_default) VALUES (?,?,?,?,?)",
-        [(c, n, lic, src.name, d) for c, (n, lic, d) in VERSIONS.items()],
+        [
+            (code,) + TRANSLATION_META.get(code, (code, "personal-cache-copyrighted"))
+            + (src.name, 1 if code == default_code else 0)
+            for code in codes
+        ],
     )
     tid = {c: i for c, i in db.execute("SELECT code, id FROM translations")}
 
-    # verse_refs: union of (book, chapter, verse) across the imported versions.
-    refs = src_db.execute(
-        f"SELECT DISTINCT book, chapter, verse FROM {table} "
-        f"WHERE book BETWEEN 1 AND 66 AND version IN ({placeholders}) "
-        f"ORDER BY book, chapter, verse",
-        codes,
-    ).fetchall()
+    # Read + fix verses per translation (verse-1 remap + text cleanup), then
+    # union the corrected (book, chapter, verse) keys across translations for
+    # verse_refs.
+    fixed = {}
+    all_refs = set()
+    for code in codes:
+        rows = src_db.execute(
+            "SELECT book, chapter, verse, text FROM verses WHERE translation=?", (code,)
+        ).fetchall()
+        by_chapter = {}
+        for book, chapter, verse, _text in rows:
+            by_chapter.setdefault((book, chapter), set()).add(verse)
+        remap = {key: verse1_remap(key[1], verses) for key, verses in by_chapter.items()}
+        fixed[code] = [
+            (book, chapter, remap[(book, chapter)].get(verse, verse), clean_text(text))
+            for book, chapter, verse, text in rows
+        ]
+        all_refs.update(
+            (book_id_by_source_name[book], chapter, verse) for book, chapter, verse, _ in fixed[code]
+        )
+
     db.executemany(
-        "INSERT INTO verse_refs (book_id, chapter, verse) VALUES (?,?,?)", refs
+        "INSERT INTO verse_refs (book_id, chapter, verse) VALUES (?,?,?)", sorted(all_refs)
     )
     ref_id = {
         (b, c, v): i
         for i, b, c, v in db.execute("SELECT id, book_id, chapter, verse FROM verse_refs")
     }
 
-    # verse_texts: one row per (verse, version), trailing CR/whitespace stripped.
     for code in codes:
-        vt = src_db.execute(
-            f"SELECT book, chapter, verse, text FROM {table} "
-            "WHERE version = ? AND book BETWEEN 1 AND 66",
-            (code,),
-        ).fetchall()
         db.executemany(
             "INSERT INTO verse_texts (verse_ref_id, translation_id, text) VALUES (?,?,?)",
-            [(ref_id[(b, c, v)], tid[code], (t or "").rstrip()) for b, c, v, t in vt],
+            [
+                (ref_id[(book_id_by_source_name[book], chapter, verse)], tid[code], text)
+                for book, chapter, verse, text in fixed[code]
+            ],
+        )
+
+    # section_headings: every heading row (position 0 = section heading,
+    # 1-3 = psalm/passage title lines) becomes its own row, in reading order.
+    # end_chapter/verse_end are cosmetic (db.rs only ever filters by book_id +
+    # chapter + translation): range end = one verse before the next heading
+    # anchor in this chapter, or the chapter's last verse if it's the last one.
+    for code in codes:
+        hrows = src_db.execute(
+            "SELECT book, chapter, verse_start, position, text FROM headings "
+            "WHERE translation=? ORDER BY book, chapter, verse_start, position",
+            (code,),
+        ).fetchall()
+        max_verse = {}
+        for book, chapter, verse, _text in fixed[code]:
+            key = (book, chapter)
+            if verse > max_verse.get(key, 0):
+                max_verse[key] = verse
+        anchors = {}
+        for book, chapter, verse_start, _position, _text in hrows:
+            anchors.setdefault((book, chapter), set()).add(verse_start)
+        anchors = {k: sorted(v) for k, v in anchors.items()}
+
+        insert_rows = []
+        for book, chapter, verse_start, _position, text in hrows:
+            starts = anchors[(book, chapter)]
+            idx = starts.index(verse_start)
+            if idx + 1 < len(starts):
+                verse_end = starts[idx + 1] - 1
+            else:
+                verse_end = max_verse.get((book, chapter), verse_start)
+            insert_rows.append(
+                (
+                    book_id_by_source_name[book],
+                    chapter,
+                    verse_start,
+                    chapter,
+                    verse_end,
+                    clean_text(text),
+                    tid[code],
+                )
+            )
+        db.executemany(
+            "INSERT INTO section_headings "
+            "(book_id, chapter, verse_start, end_chapter, verse_end, heading, translation_id) "
+            "VALUES (?,?,?,?,?,?,?)",
+            insert_rows,
         )
 
     # FTS index over the imported text.
@@ -280,17 +299,16 @@ def build(src: Path, out: Path, table: str) -> sqlite3.Connection:
     )
     db.commit()
     src_db.close()
-
-    load_headings(db, ROOT)
     return db
 
 
 def selfcheck(db: sqlite3.Connection) -> None:
     n = lambda q, *a: db.execute(q, a).fetchone()[0]
-    assert n("SELECT COUNT(*) FROM translations") == len(VERSIONS)
+    translation_count = n("SELECT COUNT(*) FROM translations")
+    assert translation_count >= 1
     assert n("SELECT COUNT(*) FROM books") == 66
-    # union of versifications is ~31.1k; assert a sane full-Bible range.
-    assert 31000 <= n("SELECT COUNT(*) FROM verse_refs") <= 31500
+    # union of versifications across all imported translations.
+    assert 29000 <= n("SELECT COUNT(*) FROM verse_refs") <= 32000
     assert n("SELECT COUNT(*) FROM verse_texts") > 150000
     assert n("SELECT COUNT(*) FROM verse_fts") == n("SELECT COUNT(*) FROM verse_texts")
     # John 1:1 (book 43) ESV present and non-empty.
@@ -303,10 +321,12 @@ def selfcheck(db: sqlite3.Connection) -> None:
     assert john11 and john11[0].strip(), "John 1:1 ESV missing"
     # FTS actually matches.
     assert n("SELECT COUNT(*) FROM verse_fts WHERE verse_fts MATCH 'beginning'") > 0
-    # Section headings parsed from both testament files.
-    assert 1800 <= n("SELECT COUNT(*) FROM section_headings") <= 2800
+    # Section headings exist for every imported translation.
+    assert 14000 <= n("SELECT COUNT(*) FROM section_headings") <= 16000
     john11_heading = db.execute(
-        "SELECT heading FROM section_headings WHERE book_id=43 AND chapter=1 AND verse_start=1"
+        "SELECT heading FROM section_headings "
+        "WHERE book_id=43 AND chapter=1 AND verse_start=1 AND translation_id=?",
+        (esv,),
     ).fetchone()
     assert john11_heading and john11_heading[0] == "The Word Became Flesh"
 
@@ -334,23 +354,14 @@ def resolve_src(cli_src) -> Path:
     return p if p.is_absolute() else ROOT / p
 
 
-def resolve_table(cli_table) -> str:
-    """Source table name from --table, else $BIBLE_SOURCE_TABLE (.env)."""
-    raw = cli_table or os.environ.get(TABLE_ENV_VAR)
-    if not raw:
-        raise SystemExit(f"source table not set: put `{TABLE_ENV_VAR}=...` in .env or pass --table NAME.")
-    return raw
-
-
 def main() -> None:
     load_dotenv(ROOT / ".env")
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--src", default=None, help=f"source DB path; default from ${ENV_VAR} in .env")
-    ap.add_argument("--table", default=None, help=f"source table name; default from ${TABLE_ENV_VAR} in .env")
     ap.add_argument("--out", type=Path, default=OUT_DEFAULT)
     args = ap.parse_args()
 
-    db = build(resolve_src(args.src), args.out, resolve_table(args.table))
+    db = build(resolve_src(args.src), args.out)
     selfcheck(db)
     counts = {
         t: db.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]

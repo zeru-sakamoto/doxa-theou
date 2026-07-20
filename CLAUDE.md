@@ -15,7 +15,7 @@ doxa-theou is a Bible Study App, built as a desktop app with Tauri 2 (Rust backe
 - `npm run tauri build` — produce a release desktop bundle
 - `cargo build` / `cargo check` (run from `src-tauri/`) — build/check the Rust side directly
 - `cargo test` (run from `src-tauri/`) — run Rust tests; no test suite exists yet
-- `python scripts/import_bible.py` — one-time (stdlib only, no deps): build the normalized `bible.sqlite` from the source DB, then copy it into the app-local-data dir. First copy `.env.example` to `.env` and set `BIBLE_SOURCE_DB`/`BIBLE_SOURCE_TABLE` to your local source DB's path and table name (the DB isn't shipped with the source). Verse data comes from this local import, **not** an ESV/network API. See `DESIGN.md`.
+- `python scripts/import_bible.py` — one-time (stdlib only, no deps): build the normalized `bible.sqlite` from the source DB, then copy it into the app-local-data dir. First copy `.env.example` to `.env` and set `BIBLE_SOURCE_DB` to your local source DB's path (the DB isn't shipped with the source). Verse data comes from this local import, **not** an ESV/network API. See `DESIGN.md`.
 
 ## Architecture
 

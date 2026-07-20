@@ -71,7 +71,7 @@ export const HIGHLIGHT_PALETTES: Palette[] = [
 export const paletteById = (id: string): Palette =>
   HIGHLIGHT_PALETTES.find((p) => p.id === id) ?? HIGHLIGHT_PALETTES[0];
 
-// ponytail: crude line-prefix strip instead of a Markdown parser — this is
+// Crude line-prefix strip instead of a Markdown parser — this is
 // only ever shown as a truncated list-card preview, never rendered as HTML.
 function stripMarkdown(text: string): string {
   return text

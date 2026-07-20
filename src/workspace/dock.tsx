@@ -21,6 +21,7 @@ import {
   type IDockviewPanelProps,
   type ReactContextMenuItemConfig,
 } from "dockview-react";
+import { HomePanel } from "../panels/HomePanel";
 import { ReaderPanel, type ReaderParams } from "../panels/ReaderPanel";
 import { formatReference, useWorkspace } from "../state/workspace";
 
@@ -76,6 +77,13 @@ const components = {
   ),
 };
 
+// Dockview's built-in "no panels" affordance — shown automatically whenever
+// the dock is empty (fresh install, reset layout, or closing everything
+// mid-session). Module-scope so it's a stable reference, same as `components`.
+function Watermark() {
+  return <HomePanel />;
+}
+
 interface DockCtx {
   openReader: (translation?: string) => void;
   openNotes: () => void;
@@ -115,33 +123,24 @@ export function DockProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  // apiRef.current is set before seed runs, so addReader() targets the live api.
-  const seed = useCallback(
-    () => addReader(defaultTranslation),
-    [addReader, defaultTranslation],
-  );
-
-  const register = useCallback(
-    (api: DockviewApi) => {
-      apiRef.current = api;
-      let ok = false;
-      const saved = localStorage.getItem(LAYOUT_KEY);
-      if (saved) {
-        try {
-          api.fromJSON(JSON.parse(saved));
-          ok = api.panels.length > 0;
-        } catch {
-          ok = false;
-        }
+  const register = useCallback((api: DockviewApi) => {
+    apiRef.current = api;
+    const saved = localStorage.getItem(LAYOUT_KEY);
+    if (saved) {
+      try {
+        api.fromJSON(JSON.parse(saved));
+      } catch {
+        api.clear();
       }
-      if (!ok) seed();
-      // App-lifetime autosave; no disposal needed (dock lives as long as the app).
-      api.onDidLayoutChange(() =>
-        localStorage.setItem(LAYOUT_KEY, JSON.stringify(api.toJSON())),
-      );
-    },
-    [seed],
-  );
+    }
+    // A fresh install, a corrupt/cleared saved layout, or an empty saved
+    // layout all leave the dock with zero panels — the watermark (HomePanel)
+    // fills that automatically, so there's nothing else to do here.
+    // App-lifetime autosave; no disposal needed (dock lives as long as the app).
+    api.onDidLayoutChange(() =>
+      localStorage.setItem(LAYOUT_KEY, JSON.stringify(api.toJSON())),
+    );
+  }, []);
 
   const openReader = useCallback(
     (translation?: string) => addReader(translation ?? defaultTranslation),
@@ -199,8 +198,7 @@ export function DockProvider({ children }: { children: ReactNode }) {
     if (!api) return;
     localStorage.removeItem(LAYOUT_KEY);
     api.clear();
-    seed();
-  }, [seed]);
+  }, []);
 
   const value = useMemo<DockCtx>(
     () => ({
@@ -258,6 +256,7 @@ export function Dockview() {
     <div className="dock-host flex min-h-0">
       <DockviewReact
         components={components}
+        watermarkComponent={Watermark}
         theme={themeVisualStudio}
         dndStrategy="pointer"
         getTabContextMenuItems={getTabContextMenuItems}

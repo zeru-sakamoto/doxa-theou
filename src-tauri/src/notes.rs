@@ -84,7 +84,7 @@ pub fn book_map(bible: &Connection) -> rusqlite::Result<Vec<(String, i64)>> {
     Ok(v)
 }
 
-// ponytail: hand-rolled `key: value` / `[a, b]` frontmatter parse, mirroring
+// Hand-rolled `key: value` / `[a, b]` frontmatter parse, mirroring
 // the TS parser in notes.ts. The samples only use flat scalars and lists.
 fn parse_list(v: &str) -> Vec<String> {
     let v = v.trim();
