@@ -45,6 +45,12 @@ button {
 :focus:not(:focus-visible) {
   outline: none;
 }
+/* .input has its own border/shadow focus style (shell.css); the generic
+   ring above would otherwise clobber it since Tailwind's @layer utilities
+   can't win against this file's unlayered rules. */
+.input:focus-visible {
+  outline: none;
+}
 
 /* Thin, token-colored scrollbars (both engines). */
 * {

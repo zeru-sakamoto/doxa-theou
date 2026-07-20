@@ -67,9 +67,9 @@ export function NotesEditor({
           onCancel={onCancelAnchor}
         />
         <input
-          className="input mx-3"
+          className="notes-title mx-3 bg-transparent border-0 text-ink placeholder:text-muted placeholder:font-normal"
           value={note.title}
-          placeholder="Untitled note"
+          placeholder="Title"
           onChange={(e) => onTitleChange(e.target.value)}
         />
         <EditorContent editor={editor} className="tiptap px-3" />

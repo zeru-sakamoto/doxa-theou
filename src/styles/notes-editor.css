@@ -7,10 +7,22 @@
    ==========================================================================*/
 
 .tiptap {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: var(--text-read);
   line-height: var(--lh-read);
   color: var(--text);
+  outline: none;
+}
+
+/* Overrides base.css's global `input { font: inherit }` and `:focus-visible`
+   ring (both unlayered, so Tailwind utility classNames can't beat them). */
+input.notes-title {
+  font-family: var(--font-sans);
+  font-size: var(--text-2xl);
+  font-weight: var(--fw-semibold);
+}
+input.notes-title:focus,
+input.notes-title:focus-visible {
   outline: none;
 }
 
@@ -21,7 +33,7 @@
 .tiptap h1,
 .tiptap h2,
 .tiptap h3 {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-weight: var(--fw-semibold);
   line-height: var(--lh-tight);
   color: var(--editor-heading-fg);

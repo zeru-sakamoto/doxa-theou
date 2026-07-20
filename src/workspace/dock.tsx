@@ -49,9 +49,8 @@ function PanelFallback() {
 }
 
 const LAYOUT_KEY = "doxa-layout";
-type Singleton = "notes" | "search" | "settings";
+type Singleton = "search" | "settings";
 const TITLES: Record<Singleton, string> = {
-  notes: "Notes",
   search: "Search",
   settings: "Settings",
 };
@@ -79,6 +78,7 @@ const components = {
 
 interface DockCtx {
   openReader: (translation?: string) => void;
+  openNotes: () => void;
   openSingleton: (component: Singleton) => void;
   gotoReference: (bookId: number, chapter: number, verse?: number) => void;
   saveLayout: () => void;
@@ -148,6 +148,18 @@ export function DockProvider({ children }: { children: ReactNode }) {
     [addReader, defaultTranslation],
   );
 
+  // Each call opens a new independent Notes tab (own drawer/editor state),
+  // same "reader-N"-style unique id pattern rather than the Singleton path.
+  const openNotes = useCallback(() => {
+    const api = apiRef.current;
+    if (!api) return;
+    api.addPanel({
+      id: `notes-${++idRef.current}`,
+      component: "notes",
+      title: "Notes",
+    });
+  }, []);
+
   const openSingleton = useCallback((component: Singleton) => {
     const api = apiRef.current;
     if (!api) return;
@@ -193,6 +205,7 @@ export function DockProvider({ children }: { children: ReactNode }) {
   const value = useMemo<DockCtx>(
     () => ({
       openReader,
+      openNotes,
       openSingleton,
       gotoReference,
       saveLayout,
@@ -201,6 +214,7 @@ export function DockProvider({ children }: { children: ReactNode }) {
     }),
     [
       openReader,
+      openNotes,
       openSingleton,
       gotoReference,
       saveLayout,

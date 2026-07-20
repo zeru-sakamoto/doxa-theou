@@ -79,7 +79,7 @@ export function Header() {
 
   const layoutItems: MenuAction[] = [
     { label: "Add Reader", onSelect: () => dock.openReader() },
-    { label: "Add Notes", onSelect: () => dock.openSingleton("notes") },
+    { label: "Add Notes", onSelect: () => dock.openNotes() },
     { label: "Add Search", onSelect: () => dock.openSingleton("search") },
     { label: "Save layout", onSelect: () => dock.saveLayout() },
     { label: "Reset layout", danger: true, onSelect: () => dock.resetLayout() },
@@ -149,7 +149,7 @@ export function Header() {
         </Menu>
         <button
           className={hbtn}
-          onClick={() => dock.openSingleton("notes")}
+          onClick={() => dock.openNotes()}
           title="Notes"
         >
           <NotesIcon size={16} />
