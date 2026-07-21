@@ -16,12 +16,14 @@ import {
   type ReactNode,
 } from "react";
 import {
+  DockviewDefaultTab,
   DockviewReact,
   themeVisualStudio,
   type BuiltInContextMenuItem,
   type DockviewApi,
   type GetTabContextMenuItemsParams,
   type IDockviewPanel,
+  type IDockviewPanelHeaderProps,
   type IDockviewPanelProps,
   type ReactContextMenuItemConfig,
 } from "dockview-react";
@@ -29,6 +31,13 @@ import { HomePanel } from "../panels/HomePanel";
 import type { NotesParams } from "../panels/NotesPanel";
 import { ReaderPanel, type ReaderParams } from "../panels/ReaderPanel";
 import { useWorkspace } from "../state/workspace";
+import {
+  BookIcon,
+  CloseIcon,
+  NotesIcon,
+  SearchIcon,
+  SettingsIcon,
+} from "./icons";
 
 // Reader is the most commonly-reopened panel, so it's imported eagerly above.
 // Notes/Search/Settings are opened on demand — lazy so their code (notably
@@ -193,6 +202,73 @@ const components = {
       </Suspense>
     </PanelErrorBoundary>
   ),
+};
+
+const TAB_ICONS: Record<string, typeof BookIcon> = {
+  reader: BookIcon,
+  notes: NotesIcon,
+  search: SearchIcon,
+  settings: SettingsIcon,
+};
+
+// Custom tab renderer, one shared component for every panel type — picks
+// its icon off `api.component` rather than needing a separate component
+// per entry in `tabComponents` below. Reimplements dockview-react's
+// DockviewDefaultTab (title span + close button) rather than wrapping it,
+// since that component has no slot for extra content; keeps the exact same
+// `dv-default-tab`/`dv-default-tab-content`/`dv-default-tab-action` class
+// names so the hover/active-state overrides in tokens.css (which target
+// those classes) still apply untouched.
+//
+// Only for the visible tab strip (`tabLocation === 'header'`): the overflow
+// dropdown list (`'headerOverflow'`) renders through dockview's own
+// DockviewDefaultTab unmodified instead, no icon. Selecting a tab from that
+// dropdown was hiding the app's whole custom titlebar; scoping our
+// still-fairly-new custom renderer away from that less-exercised path
+// removes it as a variable. If this recurs even without our custom tab
+// content in play, the cause is elsewhere in the overflow-popup plumbing.
+function PanelTab(props: IDockviewPanelHeaderProps) {
+  if (props.tabLocation === "headerOverflow") {
+    return <DockviewDefaultTab {...props} />;
+  }
+  return <PanelTabContent {...props} />;
+}
+
+function PanelTabContent({ api }: IDockviewPanelHeaderProps) {
+  const [title, setTitle] = useState(api.title);
+  useEffect(() => {
+    const d = api.onDidTitleChange((e) => setTitle(e.title));
+    if (title !== api.title) setTitle(api.title);
+    return () => d.dispose();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [api]);
+  const Icon = TAB_ICONS[api.component];
+  return (
+    <div className="dv-default-tab">
+      {Icon && (
+        <span className="dv-tab-icon">
+          <Icon size={13} />
+        </span>
+      )}
+      <span className="dv-default-tab-content">{title}</span>
+      <div
+        className="dv-default-tab-action"
+        onPointerDown={(e) => e.preventDefault()}
+        onClick={(e) => {
+          e.preventDefault();
+          api.close();
+        }}
+      >
+        <CloseIcon size={12} />
+      </div>
+    </div>
+  );
+}
+const tabComponents = {
+  reader: PanelTab,
+  notes: PanelTab,
+  search: PanelTab,
+  settings: PanelTab,
 };
 
 // Dockview's built-in "no panels" affordance — shown automatically whenever
@@ -532,9 +608,25 @@ export function Dockview() {
   );
 
   return (
-    <div ref={hostRef} className="dock-host relative flex min-h-0">
+    // overflow-hidden matters beyond clipping: dockview calls
+    // tab.element.scrollIntoView() when activating a tab picked from the
+    // tab-overflow dropdown (to bring it into view in the tab strip), and
+    // .dock-host previously had no overflow of its own — the browser's
+    // "nearest scrollable ancestor" search for that call fell all the way
+    // through to <body>, which does clip (overflow:hidden, base.css) but
+    // that doesn't stop scrollIntoView from still *scrolling* it
+    // programmatically. That scrolled the whole page up by ~header-height,
+    // pushing the header off-screen above the viewport, without resetting
+    // on resize. Giving .dock-host its own overflow boundary here means the
+    // search — and the scroll — terminates inside the dock instead of
+    // escaping to the page.
+    <div
+      ref={hostRef}
+      className="dock-host relative flex min-h-0 overflow-hidden"
+    >
       <DockviewReact
         components={components}
+        tabComponents={tabComponents}
         watermarkComponent={Watermark}
         theme={themeVisualStudio}
         dndStrategy="pointer"

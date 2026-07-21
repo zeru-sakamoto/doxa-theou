@@ -188,7 +188,7 @@ shown on Settings, since there's only ever one) · **Close**.
 
 **Duplicate tab** reuses `openReader`/`openNotes`, so the copy lands as a tab
 in the existing Reader/Notes group rather than a new split — see "Tab
-grouping" below. It reflects the source tab's *current* state, not just what
+grouping" below. It reflects the source tab's _current_ state, not just what
 it was opened with: `ReaderPanel`/`NotesPanel` mirror their live
 position/selected-note into the panel's own params via `api.updateParameters`
 whenever it changes (one-directional — read-only from the source panel's own

@@ -43,6 +43,12 @@ export function NotesPanel({ api, params }: IDockviewPanelProps<NotesParams>) {
 
   const selectedNote = notes.find((n) => n.id === selectedId) ?? null;
 
+  // Tab title: the open note's title, falling back to "Notes" only when
+  // there's no note open or it hasn't been titled yet.
+  useEffect(() => {
+    api.setTitle(selectedNote?.title.trim() ? selectedNote.title : "Notes");
+  }, [api, selectedNote?.title]);
+
   function selectNote(id: string | null) {
     setSelectedId(id);
     setDrawerOpen(false);

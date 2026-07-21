@@ -133,6 +133,14 @@
     min-width: 0;
   }
 
+  /* Leading tab icon (PanelTab, dock.tsx) — sits inside dockview's own
+   .dv-default-tab flex row, ahead of .dv-default-tab-content. No color set:
+   inherits currentColor from dockview's active/inactive tab foreground var,
+   so it matches the title text's state automatically. */
+  .dv-tab-icon {
+    @apply inline-flex items-center shrink-0 mr-1.5;
+  }
+
   /* Live "this is where it'll snap" guide line while dragging a two-group
    divider within the snap zone (see Dockview's pointer-tracking effect in
    dock.tsx) — positioned/sized (2px thick, stretched the other axis) via
