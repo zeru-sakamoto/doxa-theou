@@ -24,7 +24,7 @@ export function SettingsPanel() {
 
   return (
     <div className="panel">
-      <div className="panel__scroll max-w-[540px]">
+      <div className="panel__scroll mx-auto w-full max-w-[640px]">
         <section className="[&+&]:mt-6">
           <h3 className="mb-2 text-(length:--text-xs) uppercase tracking-[0.06em] text-muted">
             Appearance
@@ -83,10 +83,19 @@ export function SettingsPanel() {
             <div className="flex flex-col">
               <span className="text-(length:--text-sm)">Open notes on</span>
               <span className="panel__muted">
-                Side to split a note to when a Reader is already open
+                Side to split a note to, or tab it into whatever's active, when
+                no Notes tab is open yet
               </span>
             </div>
             <div className="seg" role="group" aria-label="Open notes on">
+              <button
+                className={
+                  "seg__btn" + (ws.notesSplitSide === "active" ? " is-on" : "")
+                }
+                onClick={() => ws.setNotesSplitSide("active")}
+              >
+                Active
+              </button>
               <button
                 className={
                   "seg__btn" + (ws.notesSplitSide === "left" ? " is-on" : "")

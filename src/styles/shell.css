@@ -114,7 +114,7 @@
   }
 
   .seg {
-    @apply inline-flex border border-border rounded-[var(--radius-sm)] overflow-hidden;
+    @apply inline-flex shrink-0 border border-border rounded-[var(--radius-sm)] overflow-hidden;
   }
   .seg__btn {
     @apply inline-flex items-center gap-1.5 px-3 py-[5px] border-0 bg-transparent text-muted text-[length:var(--text-sm)];
@@ -137,8 +137,42 @@
    divider within the snap zone (see Dockview's pointer-tracking effect in
    dock.tsx) — positioned/sized (2px thick, stretched the other axis) via
    inline style since that's per-drag; this class only carries the fixed
-   visual treatment. */
+   visual treatment. Grows from its center on mount so it reads as "unfurling"
+   from the drag point rather than popping in; axis modifier picks which way
+   it grows (perpendicular to the line's own thickness). */
   .snap-guide {
-    @apply absolute z-(--z-drawer) pointer-events-none bg-accent shadow-[0_0_6px_1px_rgb(var(--accent-rgb)/0.6)];
+    @apply absolute z-(--z-drawer) pointer-events-none bg-accent shadow-[0_0_6px_1px_rgb(var(--accent-rgb)/0.6)] origin-center;
+  }
+  .snap-guide--x {
+    animation: snap-grow-y var(--dur-fast) var(--ease-out);
+  }
+  .snap-guide--y {
+    animation: snap-grow-x var(--dur-fast) var(--ease-out);
+  }
+  @keyframes snap-grow-y {
+    from {
+      transform: scaleY(0);
+      opacity: 0;
+    }
+    to {
+      transform: scaleY(1);
+      opacity: 1;
+    }
+  }
+  @keyframes snap-grow-x {
+    from {
+      transform: scaleX(0);
+      opacity: 0;
+    }
+    to {
+      transform: scaleX(1);
+      opacity: 1;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .snap-guide--x,
+    .snap-guide--y {
+      animation-duration: 1ms;
+    }
   }
 }

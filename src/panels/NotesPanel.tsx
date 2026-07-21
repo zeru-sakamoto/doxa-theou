@@ -2,10 +2,11 @@
 // editor (live type-to-transform Markdown). Notes live in NotesProvider
 // (src/state/notes.tsx): loaded from disk, persisted through Rust on edit,
 // and shared with the Reader for verse-anchor highlighting.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { IDockviewPanelProps } from "dockview-react";
 import { useNotes } from "../state/notes";
 import { formatReference, useWorkspace } from "../state/workspace";
+import { useDock } from "../workspace/dock";
 import { Menu } from "../workspace/Menu";
 import { CloseIcon, MenuIcon, MoreIcon } from "../workspace/icons";
 import { NotesColorMenu } from "./notes/NotesColorMenu";
@@ -17,13 +18,23 @@ export interface NotesParams {
   noteId?: string;
 }
 
-export function NotesPanel({ params }: IDockviewPanelProps<NotesParams>) {
+export function NotesPanel({ api, params }: IDockviewPanelProps<NotesParams>) {
   const ws = useWorkspace();
+  const dock = useDock();
   const { notes, createNote, updateNote, deleteNote } = useNotes();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(
     params.noteId ?? null,
   );
+
+  // Mirror the currently-open note into the panel's own params so
+  // "Duplicate tab" (dock.tsx) opens the new tab on the note actually
+  // showing, not just whatever noteId this panel was originally opened
+  // with. Read-only from this panel's perspective — never affects this
+  // instance's own state.
+  useEffect(() => {
+    api.updateParameters({ noteId: selectedId ?? undefined });
+  }, [api, selectedId]);
   const [anchorDraft, setAnchorDraft] = useState<string | null>(null);
   const [tagDraft, setTagDraft] = useState("");
   const [query, setQuery] = useState("");
@@ -204,7 +215,11 @@ export function NotesPanel({ params }: IDockviewPanelProps<NotesParams>) {
         <NotesDrawer
           open={drawerOpen}
           notes={filtered}
-          onSelect={(note) => selectNote(note.id)}
+          onSelect={(note, e) =>
+            e.ctrlKey || e.metaKey
+              ? dock.openNotes(note.id, { inactive: true })
+              : selectNote(note.id)
+          }
         />
 
         <div className="flex flex-col flex-1 min-h-0 overflow-hidden">

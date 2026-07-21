@@ -2,6 +2,7 @@
 // Unlike reader/TocDrawer (an ephemeral overlay), this is a persistent
 // collapsible column — the note body reflows around it when toggled.
 import { motion, useReducedMotion } from "motion/react";
+import type { MouseEvent } from "react";
 import { notePreview, type Note } from "./notes";
 
 // Matches --drawer-width in tokens.css.
@@ -10,7 +11,7 @@ const SIDEBAR_WIDTH = 244;
 interface Props {
   open: boolean;
   notes: Note[];
-  onSelect: (note: Note) => void;
+  onSelect: (note: Note, event: MouseEvent) => void;
 }
 
 export function NotesDrawer({ open, notes, onSelect }: Props) {
@@ -39,7 +40,7 @@ export function NotesDrawer({ open, notes, onSelect }: Props) {
                 <button
                   type="button"
                   className="flex flex-col gap-1 w-full p-2 mb-0.5 border-0 border-l-2 border-l-transparent rounded-(--radius-sm) bg-transparent text-left hover:bg-accent-tint hover:border-l-accent"
-                  onClick={() => onSelect(n)}
+                  onClick={(e) => onSelect(n, e)}
                 >
                   <span className="flex items-center gap-1.5 text-(length:--text-sm) font-medium text-ink">
                     {n.color && (

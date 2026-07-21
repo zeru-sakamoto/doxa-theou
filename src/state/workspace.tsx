@@ -21,7 +21,7 @@ import {
 import type { PaletteId } from "../panels/notes/notes";
 
 export type Theme = "light" | "dark";
-export type NotesSplitSide = "left" | "right";
+export type NotesSplitSide = "left" | "right" | "active";
 export interface Reference {
   bookId: number;
   chapter: number;

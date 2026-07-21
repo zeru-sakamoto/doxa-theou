@@ -248,6 +248,19 @@ export function ReaderPanel({
     );
   }, [api, currentPos, translation, ws.bookAbbr]);
 
+  // Mirror the current position into the panel's own params so "Duplicate
+  // tab" (dock.tsx) opens the new tab where this one currently is, not where
+  // it started. Read-only from this panel's perspective — it never affects
+  // this instance's own state/scroll, only what a future duplicate reads.
+  useEffect(() => {
+    api.updateParameters({
+      translation,
+      bookId: currentPos.bookId,
+      chapter: currentPos.chapter,
+      verse: currentPos.verse,
+    });
+  }, [api, translation, currentPos]);
+
   // When this Reader is the active panel, it owns the status bar + Cmd-K target.
   // Depends on the individual setters (each stable in state/workspace.tsx)
   // rather than the whole `ws` object, whose identity changes on every one

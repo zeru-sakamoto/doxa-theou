@@ -118,7 +118,7 @@ src/
     Header.tsx             custom window bar + global controls
     StatusBar.tsx          reference · translation · status · live clock
     CommandPalette.tsx     ⌘K go-to-reference; also exports parseQuery(), reused by the anchor composer
-    dock.tsx               dockview wrapper, panel registry (Notes/Search/Settings lazy, Home eager), watermarkComponent, DockProvider/useDock, tab context menu, splits Notes beside an open Reader, snaps a two-group divider to the exact middle
+    dock.tsx               dockview wrapper, panel registry (Notes/Search/Settings lazy, Home eager), watermarkComponent, DockProvider/useDock, tab context menu (Duplicate tab, Close others, Close), joins an existing Reader/Notes group instead of re-splitting, snaps a two-group divider to the exact middle
     LoadingScreen.tsx      shown while ws.ready is false — wordmark + quiet fade, no spinner
     Menu.tsx               reusable dropdown menu
     icons.tsx              inline SVG icon set
@@ -128,7 +128,7 @@ src/
     reader/ChapterView.tsx renders a chapter's verses split into heading segments, rows/paragraph flow modes
     reader/TocDrawer.tsx   in-panel book/chapter navigator
     NotesPanel.tsx         header (list/search/filter/color/⋯) + editor host
-    notes/NotesDrawer.tsx  in-panel note-list drawer (cards: color dot, title-or-preview, tags, anchors)
+    notes/NotesDrawer.tsx  in-panel note-list drawer (cards: color dot, title-or-preview, tags, anchors); Ctrl/Cmd-click opens a note in a new background tab
     notes/NotesFilterMenu.tsx  tag (text) / book (multi-select) filter popover
     notes/NotesColorMenu.tsx   per-note color swatch picker (header, left of ⋯)
     notes/NotesEditor.tsx      Tiptap editor host: toolbar, anchor bar, title input, content
@@ -136,7 +136,7 @@ src/
     notes/NotesAnchorBar.tsx   verse-anchor rows + composer (autocomplete, keyboard nav, chapter/verse validation)
     notes/notes.ts         sample-notes loader/parser, shared highlight palette, notePreview()
     SearchPanel.tsx        Verses + Notes result groups
-    SettingsPanel.tsx      theme toggle, default translation, highlight palette, notes folder, notes-panel split side
+    SettingsPanel.tsx      theme toggle, default translation, highlight palette, notes folder, notes-panel placement (Active/Left/Right)
 ```
 
 ---
@@ -182,8 +182,38 @@ default startup screen only — it isn't a panel type, so it can't be opened
 as a tab; the only way back to it mid-session is closing every open panel.
 
 Each panel's group header shows dockview tabs (drag + close). Right-clicking a
-tab opens a native context menu (**Copy reference · Close others · Close**),
-via `DockviewReact`'s `getTabContextMenuItems`.
+tab opens a native context menu via `DockviewReact`'s `getTabContextMenuItems`
+(`dock.tsx`): **Duplicate tab** (Reader/Notes only) · **Close others** (not
+shown on Settings, since there's only ever one) · **Close**.
+
+**Duplicate tab** reuses `openReader`/`openNotes`, so the copy lands as a tab
+in the existing Reader/Notes group rather than a new split — see "Tab
+grouping" below. It reflects the source tab's *current* state, not just what
+it was opened with: `ReaderPanel`/`NotesPanel` mirror their live
+position/selected-note into the panel's own params via `api.updateParameters`
+whenever it changes (one-directional — read-only from the source panel's own
+perspective, so duplicating never disturbs the source tab itself), and
+`Duplicate tab` reads that live `panel.params` when opening the copy.
+
+### Tab grouping, joining, and scroll preservation
+
+Opening a second Reader or Notes tab (via the header, Home, ⌘K, an anchor, or
+Duplicate tab) tabs it into the **existing** Reader/Notes group instead of
+re-splitting the screen every time (`addReader`/`openNotes` in `dock.tsx`,
+via dockview's `position: { referencePanel, direction: "within" }`). Notes
+additionally supports being manually split apart into a left group and a
+right group (drag a Notes tab out); when both exist, `openNotes` picks
+whichever side matches Settings ▸ Notes ▸ **Open notes on**, by comparing the
+two groups' DOM rects, rather than picking arbitrarily.
+
+dockview's default tab renderer (`'onlyWhenVisible'`) physically detaches an
+inactive tab's content from the DOM and reattaches it when reactivated, which
+resets scroll position — invisible while every Reader/Notes tab had its own
+group, but reachable as soon as two of them can share one (grouping,
+Duplicate tab). Reader and Notes panels are opened with `renderer: "always"`
+instead, which keeps a tab's content permanently mounted (in an
+absolutely-positioned overlay, toggling visibility/pointer-events) so
+switching tabs within a shared group never resets scroll.
 
 When exactly two groups are open (e.g. a Reader split beside Notes — see §6),
 dragging the divider between them to within 24px (`SNAP_THRESHOLD_PX`) of an
@@ -205,7 +235,9 @@ sash element class) rather than any dockview event, reading live DOM
 geometry through the same `computeSnapCandidate` helper `snapMiddleIfClose`
 uses, so the guide and the actual snap always agree on exactly when it'll
 fire. Purely observational (only reads geometry, sets local React state) —
-it can't interfere with dockview's own drag handling.
+it can't interfere with dockview's own drag handling. On mount it grows from
+its center (`scaleX`/`scaleY` + fade, axis-matched, `--dur-fast`/`--ease-out`)
+rather than snapping straight in, and honors `prefers-reduced-motion`.
 
 ---
 
@@ -219,7 +251,7 @@ Registered in `dock.tsx` under a `components` map (`id → component`).
 | **Reader**   | `get_chapter`, `list_books`            | One translation, chosen at open time ("version-dedicated").                                                                                                                                  |
 | **Search**   | `search` (FTS5 / bm25)                 | Verses + Notes groups; Notes search is a placeholder.                                                                                                                                        |
 | **Notes**    | `load_notes`/`save_note`/`delete_note` | Header, list, and a real Tiptap editor (toolbar, anchors, optional title); notes persist to disk via `NotesProvider` (`src/state/notes.tsx`), debounced per-note.                            |
-| **Settings** | `list_translations`                    | Theme toggle, default translation, shared highlight palette, notes folder picker, notes-panel split side (left/right).                                                                       |
+| **Settings** | `list_translations`                    | Theme toggle, default translation, shared highlight palette, notes folder picker, notes-panel placement (Active/Left/Right).                                                                 |
 
 **Home** (`HomePanel.tsx`). The default startup screen — passed only as
 dockview's `watermarkComponent` (auto-shown whenever the dock has zero
@@ -276,12 +308,20 @@ narrowed to chapters, which is what was actually wanted.
 grid of chapter-number chips; clicking a chip navigates and closes the drawer.
 Chapter counts come from a fixed canonical table in `api.ts` (no backend query).
 
-Opening a note — the header **Notes** button, or a "Recently edited" row on
-Home — splits the new Notes panel beside an already-open Reader (the active
-one if there is one, else the first) on the side set by Settings ▸ Notes ▸
-**Open notes on** (`ws.notesSplitSide`, left/right, default right; see
-`dock.tsx`'s `openNotes`). With no Reader open, it's placed wherever dockview
-would otherwise put it.
+Opening a note — the header **Notes** button, a "Recently edited" row on
+Home, or Duplicate tab — tabs into an already-open Notes group if one exists
+(see "Tab grouping" in §5). Only when there's no Notes group yet does
+Settings ▸ Notes ▸ **Open notes on** (`ws.notesSplitSide`, default `"right"`;
+`dock.tsx`'s `openNotes`) decide placement: **Left**/**Right** split the new
+Notes panel beside the active Reader (else the first Reader), **Active** tabs
+it straight into whatever group is currently active, of any kind. With
+nothing open at all, it's placed wherever dockview would otherwise put it.
+
+Ctrl/Cmd-click a note in the note-list drawer (`notes/NotesDrawer.tsx`) opens
+it as a new **background** tab (`dock.openNotes(id, { inactive: true })`) —
+the currently-open note tab stays active/focused, mirroring the
+browser convention for ctrl-click-to-open-in-a-new-tab. A plain click still
+just switches the current tab's selection in place.
 
 **Notes.** Header, left to right: a hamburger toggles the note-list sidebar
 (shows an active/accent state while open), a fixed-width search field filters
@@ -448,9 +488,6 @@ Each has an upgrade path noted in-code:
 
 - **Chapter counts** are the fixed 66-book canon in `api.ts`; there's no backend query.
 - **State** is React context, not a store library.
-- Tab right-click **Copy reference** always copies the globally active
-  Reader's reference, not necessarily the reference of the specific panel
-  right-clicked (there's no per-panel reference lookup yet).
 - The Reader shows one chapter at a time, not continuous scroll — deliberately
   removed (see §6/§7) after repeated scroll-vs-background-loading race bugs;
   moving between chapters is via TOC, ⌘K/a note anchor, or the chapter
@@ -463,8 +500,9 @@ Each has an upgrade path noted in-code:
   event doesn't fire continuously while dragging) — not a live magnetic pull,
   and not defined for 3+ groups.
 - Cross-references panel deferred (empty data table).
-- **Home**'s recently-edited-notes rows open Notes generally rather than
-  jumping straight to that note (no per-note-open API yet).
+- The Notes group left/right tiebreak (§5) only compares the two extremes
+  (leftmost/rightmost group by DOM rect) — correct for the common "split
+  into two" case, not a general N-group layout resolver.
 - No reference-history tracking exists (`activeReference` is a single
   overwritten value, not a list), so Home surfaces recent _notes_ activity
   only, not recently-read passages.

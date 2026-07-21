@@ -21,13 +21,14 @@ import {
   type BuiltInContextMenuItem,
   type DockviewApi,
   type GetTabContextMenuItemsParams,
+  type IDockviewPanel,
   type IDockviewPanelProps,
   type ReactContextMenuItemConfig,
 } from "dockview-react";
 import { HomePanel } from "../panels/HomePanel";
 import type { NotesParams } from "../panels/NotesPanel";
 import { ReaderPanel, type ReaderParams } from "../panels/ReaderPanel";
-import { formatReference, useWorkspace } from "../state/workspace";
+import { useWorkspace } from "../state/workspace";
 
 // Reader is the most commonly-reopened panel, so it's imported eagerly above.
 // Notes/Search/Settings are opened on demand — lazy so their code (notably
@@ -207,7 +208,7 @@ function Watermark() {
 
 interface DockCtx {
   openReader: (translation?: string) => void;
-  openNotes: (noteId?: string) => void;
+  openNotes: (noteId?: string, opts?: { inactive?: boolean }) => void;
   openSingleton: (component: Singleton) => void;
   gotoReference: (
     bookId: number,
@@ -239,11 +240,25 @@ export function DockProvider({ children }: { children: ReactNode }) {
     ) => {
       const api = apiRef.current;
       if (!api) return;
+      // Without an explicit position, dockview tabs the new panel into
+      // whatever group is currently active — which may be a Notes group.
+      // Prefer joining an existing reader group as a tab over that, so
+      // opening another translation doesn't land among notes tabs.
+      const existingReader = api.panels.find((p) => p.id.startsWith("reader-"));
       api.addPanel({
         id: `reader-${++idRef.current}`,
         component: "reader",
         title: `Reader · ${code}`,
         params: { translation: code, ...extra },
+        // Default 'onlyWhenVisible' renderer detaches an inactive tab's DOM
+        // from its group's shared content container, which resets its
+        // scroll position — a problem as soon as two readers share a group
+        // (e.g. "Duplicate tab"). 'always' keeps it mounted (off-screen)
+        // instead, so switching back restores exactly where it was.
+        renderer: "always",
+        ...(existingReader && {
+          position: { referencePanel: existingReader, direction: "within" },
+        }),
       });
     },
     [],
@@ -268,26 +283,79 @@ export function DockProvider({ children }: { children: ReactNode }) {
 
   // Each call opens a new independent Notes tab (own drawer/editor state),
   // same "reader-N"-style unique id pattern rather than the Singleton path.
-  // If a Reader is already open, split the new Notes panel beside it (the
-  // active Reader if there is one, else the first) on the user's preferred
-  // side (Settings ▸ Notes) instead of just tabbing/defaulting wherever
-  // dockview would otherwise place it.
+  // If a Notes group is already open, tab the new note into it — this is
+  // what "open another note" should do, not spawn a second split. Only
+  // when there's no Notes group yet do we place the new one per the user's
+  // preference (Settings ▸ Notes): split beside the Reader (the active
+  // Reader if there is one, else the first) on a given side, or — "Active" —
+  // tab it straight into whatever group is currently active, of any kind.
   const openNotes = useCallback(
-    (noteId?: string) => {
+    (noteId?: string, opts?: { inactive?: boolean }) => {
       const api = apiRef.current;
       if (!api) return;
-      const readers = api.panels.filter((p) => p.id.startsWith("reader-"));
-      const referencePanel = api.activePanel?.id.startsWith("reader-")
-        ? api.activePanel
-        : readers[0];
+      // 'always' renderer: see the matching comment in addReader — same
+      // detach-on-inactive scroll-reset issue applies once two Notes tabs
+      // share a group.
+      const notePanels = api.panels.filter((p) => p.id.startsWith("notes-"));
+      if (notePanels.length > 0) {
+        // Normally there's only one Notes group, but the user can manually
+        // drag a note tab apart into a left one and a right one — when both
+        // exist, honor the "Open notes on" side instead of picking whichever
+        // happened to be first in dockview's panel list.
+        let existingNote = notePanels[0];
+        const groups = Array.from(new Set(notePanels.map((p) => p.group)));
+        if (
+          groups.length > 1 &&
+          (notesSplitSide === "left" || notesSplitSide === "right")
+        ) {
+          const sorted = [...groups].sort(
+            (a, b) =>
+              a.element.getBoundingClientRect().left -
+              b.element.getBoundingClientRect().left,
+          );
+          const preferredGroup =
+            notesSplitSide === "left" ? sorted[0] : sorted[sorted.length - 1];
+          existingNote =
+            notePanels.find((p) => p.group === preferredGroup) ?? existingNote;
+        }
+        api.addPanel({
+          id: `notes-${++idRef.current}`,
+          component: "notes",
+          title: "Notes",
+          params: { noteId },
+          renderer: "always",
+          inactive: opts?.inactive,
+          position: { referencePanel: existingNote, direction: "within" },
+        });
+        return;
+      }
+      let position:
+        | {
+            referencePanel: IDockviewPanel;
+            direction: "left" | "right" | "within";
+          }
+        | undefined;
+      if (notesSplitSide === "active") {
+        if (api.activePanel) {
+          position = { referencePanel: api.activePanel, direction: "within" };
+        }
+      } else {
+        const readers = api.panels.filter((p) => p.id.startsWith("reader-"));
+        const referencePanel = api.activePanel?.id.startsWith("reader-")
+          ? api.activePanel
+          : readers[0];
+        if (referencePanel) {
+          position = { referencePanel, direction: notesSplitSide };
+        }
+      }
       api.addPanel({
         id: `notes-${++idRef.current}`,
         component: "notes",
         title: "Notes",
         params: { noteId },
-        ...(referencePanel && {
-          position: { referencePanel, direction: notesSplitSide },
-        }),
+        renderer: "always",
+        inactive: opts?.inactive,
+        ...(position && { position }),
       });
     },
     [notesSplitSide],
@@ -369,8 +437,7 @@ export function DockProvider({ children }: { children: ReactNode }) {
 }
 
 export function Dockview() {
-  const { register } = useDock();
-  const ws = useWorkspace();
+  const { register, openReader, openNotes } = useDock();
   const apiRef = useRef<DockviewApi | null>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const [snapGuide, setSnapGuide] = useState<{
@@ -423,28 +490,45 @@ export function Dockview() {
     return () => host.removeEventListener("pointerdown", onPointerDown);
   }, []);
 
-  // Right-click a tab for Copy reference / Close others / Close — replaces
-  // the old always-visible ⋯ overflow button.
+  // Right-click a tab for Duplicate tab / Close others / Close — replaces
+  // the old always-visible ⋯ overflow button. Duplicate only makes sense
+  // for Reader/Notes tabs (Search/Settings are singletons), and reuses
+  // openReader/openNotes so the duplicate joins the existing group like any
+  // other newly-opened tab of that kind rather than splitting. Close others
+  // is meaningless on Settings — there's only ever one, and it's not worth
+  // closing every other tab over.
   const getTabContextMenuItems = useCallback(
-    (
-      _params: GetTabContextMenuItemsParams,
-    ): (BuiltInContextMenuItem | ReactContextMenuItemConfig)[] => [
-      {
-        label: "Copy reference",
-        disabled: !ws.activeReference,
-        action: () => {
-          if (ws.activeReference)
-            navigator.clipboard?.writeText(
-              formatReference(ws.activeReference, ws.bookName),
-            );
-        },
-      },
-      "separator",
-      "closeOthers",
-      "separator",
-      "close",
-    ],
-    [ws],
+    ({
+      panel,
+    }: GetTabContextMenuItemsParams): (
+      BuiltInContextMenuItem | ReactContextMenuItemConfig
+    )[] => {
+      const isReader = panel.id.startsWith("reader-");
+      const isNotes = panel.id.startsWith("notes-");
+      const isSettings = panel.id === "settings";
+      const items: (BuiltInContextMenuItem | ReactContextMenuItemConfig)[] = [];
+      if (isReader || isNotes) {
+        items.push(
+          {
+            label: "Duplicate tab",
+            action: () => {
+              if (isReader) {
+                openReader(
+                  (panel.params as ReaderParams | undefined)?.translation,
+                );
+              } else {
+                openNotes((panel.params as NotesParams | undefined)?.noteId);
+              }
+            },
+          },
+          "separator",
+        );
+      }
+      if (!isSettings) items.push("closeOthers", "separator");
+      items.push("close");
+      return items;
+    },
+    [openReader, openNotes],
   );
 
   return (
@@ -462,7 +546,7 @@ export function Dockview() {
       />
       {snapGuide && (
         <div
-          className="snap-guide"
+          className={`snap-guide snap-guide--${snapGuide.axis}`}
           style={
             snapGuide.axis === "x"
               ? { left: snapGuide.pos, top: 0, bottom: 0, width: 2 }
