@@ -85,6 +85,14 @@ export const ChevronDownIcon = (
   </Svg>
 );
 
+export const ChevronUpIcon = (
+  p: SVGProps<SVGSVGElement> & { size?: number },
+) => (
+  <Svg {...p}>
+    <path d="m18 15-6-6-6 6" />
+  </Svg>
+);
+
 export const PlusIcon = (p: SVGProps<SVGSVGElement> & { size?: number }) => (
   <Svg {...p}>
     <path d="M12 5v14" />

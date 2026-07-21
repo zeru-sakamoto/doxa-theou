@@ -3,6 +3,7 @@
 // (src/state/notes.tsx): loaded from disk, persisted through Rust on edit,
 // and shared with the Reader for verse-anchor highlighting.
 import { useMemo, useState } from "react";
+import type { IDockviewPanelProps } from "dockview-react";
 import { useNotes } from "../state/notes";
 import { formatReference, useWorkspace } from "../state/workspace";
 import { Menu } from "../workspace/Menu";
@@ -12,11 +13,17 @@ import { NotesDrawer } from "./notes/NotesDrawer";
 import { NotesEditor } from "./notes/NotesEditor";
 import { NotesFilterMenu } from "./notes/NotesFilterMenu";
 
-export function NotesPanel() {
+export interface NotesParams {
+  noteId?: string;
+}
+
+export function NotesPanel({ params }: IDockviewPanelProps<NotesParams>) {
   const ws = useWorkspace();
   const { notes, createNote, updateNote, deleteNote } = useNotes();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    params.noteId ?? null,
+  );
   const [anchorDraft, setAnchorDraft] = useState<string | null>(null);
   const [tagDraft, setTagDraft] = useState("");
   const [query, setQuery] = useState("");

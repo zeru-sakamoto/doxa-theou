@@ -19,6 +19,11 @@ import "./styles/base.css";
 import "./styles/shell.css";
 import "./styles/notes-editor.css";
 
+// No native/webview right-click menu — this is a desktop app, not a browser
+// tab. preventDefault only (no stopPropagation), so dockview's own tab
+// context menu (getTabContextMenuItems in dock.tsx) still fires normally.
+document.addEventListener("contextmenu", (e) => e.preventDefault());
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <App />

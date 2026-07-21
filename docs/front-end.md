@@ -118,13 +118,14 @@ src/
     Header.tsx             custom window bar + global controls
     StatusBar.tsx          reference · translation · status · live clock
     CommandPalette.tsx     ⌘K go-to-reference; also exports parseQuery(), reused by the anchor composer
-    dock.tsx               dockview wrapper, panel registry (Notes/Search/Settings lazy, Home eager), watermarkComponent, DockProvider/useDock, tab context menu
+    dock.tsx               dockview wrapper, panel registry (Notes/Search/Settings lazy, Home eager), watermarkComponent, DockProvider/useDock, tab context menu, splits Notes beside an open Reader, snaps a two-group divider to the exact middle
     LoadingScreen.tsx      shown while ws.ready is false — wordmark + quiet fade, no spinner
     Menu.tsx               reusable dropdown menu
     icons.tsx              inline SVG icon set
   panels/
     HomePanel.tsx          landing view: quick actions + recently-edited notes; also the dockview watermark
-    ReaderPanel.tsx        scripture reader (one translation per panel)
+    ReaderPanel.tsx        scripture reader (one translation per panel), shows one chapter at a time
+    reader/ChapterView.tsx renders a chapter's verses split into heading segments, rows/paragraph flow modes
     reader/TocDrawer.tsx   in-panel book/chapter navigator
     NotesPanel.tsx         header (list/search/filter/color/⋯) + editor host
     notes/NotesDrawer.tsx  in-panel note-list drawer (cards: color dot, title-or-preview, tags, anchors)
@@ -135,7 +136,7 @@ src/
     notes/NotesAnchorBar.tsx   verse-anchor rows + composer (autocomplete, keyboard nav, chapter/verse validation)
     notes/notes.ts         sample-notes loader/parser, shared highlight palette, notePreview()
     SearchPanel.tsx        Verses + Notes result groups
-    SettingsPanel.tsx      theme toggle, default translation, highlight palette, notes folder
+    SettingsPanel.tsx      theme toggle, default translation, highlight palette, notes folder, notes-panel split side
 ```
 
 ---
@@ -184,6 +185,28 @@ Each panel's group header shows dockview tabs (drag + close). Right-clicking a
 tab opens a native context menu (**Copy reference · Close others · Close**),
 via `DockviewReact`'s `getTabContextMenuItems`.
 
+When exactly two groups are open (e.g. a Reader split beside Notes — see §6),
+dragging the divider between them to within 24px (`SNAP_THRESHOLD_PX`) of an
+exact 50/50 split snaps it to the middle on release — both a left/right and a
+top/bottom split (`snapMiddleIfClose` in `dock.tsx`, orientation read from
+the two groups' own DOM rects rather than dockview's internal grid model). It
+reacts to `onDidLayoutChange`, which only fires once a sash drag _ends_ (not
+continuously while dragging — the same event the layout autosave above
+already depends on firing for resizes), so this is a snap-on-release-if-close
+correction, not a live magnetic pull mid-drag. With three or more groups it
+does nothing — "the middle" between an arbitrary pair isn't identifiable from
+that event alone.
+
+Since there's no live layout event to show _during_ the drag, a thin accent
+guide line (`.snap-guide`, `shell.css`) renders while the sash is within that
+same 24px zone, so it's visible before you release — tracked independently
+via raw `pointerdown`/`pointermove`/`pointerup` on `.dv-sash` (dockview's own
+sash element class) rather than any dockview event, reading live DOM
+geometry through the same `computeSnapCandidate` helper `snapMiddleIfClose`
+uses, so the guide and the actual snap always agree on exactly when it'll
+fire. Purely observational (only reads geometry, sets local React state) —
+it can't interfere with dockview's own drag handling.
+
 ---
 
 ## 6. Panels
@@ -196,7 +219,7 @@ Registered in `dock.tsx` under a `components` map (`id → component`).
 | **Reader**   | `get_chapter`, `list_books`            | One translation, chosen at open time ("version-dedicated").                                                                                                                                  |
 | **Search**   | `search` (FTS5 / bm25)                 | Verses + Notes groups; Notes search is a placeholder.                                                                                                                                        |
 | **Notes**    | `load_notes`/`save_note`/`delete_note` | Header, list, and a real Tiptap editor (toolbar, anchors, optional title); notes persist to disk via `NotesProvider` (`src/state/notes.tsx`), debounced per-note.                            |
-| **Settings** | `list_translations`                    | Theme toggle, default translation, shared highlight palette, notes folder picker.                                                                                                            |
+| **Settings** | `list_translations`                    | Theme toggle, default translation, shared highlight palette, notes folder picker, notes-panel split side (left/right).                                                                       |
 
 **Home** (`HomePanel.tsx`). The default startup screen — passed only as
 dockview's `watermarkComponent` (auto-shown whenever the dock has zero
@@ -216,10 +239,49 @@ version. The body renders verses (Newsreader) with mono, accent verse numbers.
 When a Reader is the active panel it owns the status bar and is the target for
 go-to-reference.
 
+The Reader shows **exactly one chapter at a time** — no continuous scroll, no
+virtualization. `reader/ChapterView.tsx` renders the whole chapter in one
+shot (split into segments at passage headings, same as before, just no
+longer a per-item unit anything measures/virtualizes). Scrolling inside the
+Reader is plain page scroll within that one chapter's content; nothing
+auto-loads on reaching the top or bottom.
+
+A jump (TOC, ⌘K, a note anchor, or the chapter buttons below — see §7) calls
+`ReaderPanel.jumpTo`: if the target chapter is already the one displayed, it
+skips the fetch and just scrolls to the verse in place (smoothly); otherwise
+it fetches the target chapter, replaces what's displayed, and lands on the
+target verse instantly (no animation — there's no prior chapter content to
+animate from) via its `[data-book][data-chapter][data-verse]` element,
+followed by a brief highlight flash so it's obvious where you landed. Because
+the whole chapter is always fully rendered, that element is guaranteed to
+already exist by the time the scroll runs — there's nothing left to race
+against, which is the whole point of this design (see §10 for why continuous
+scroll was removed). Full detail on the smooth-vs-instant+flash split is
+in §7.
+
+A floating **chapter up/down** control (`.reader__nav`, pinned to the right
+edge) steps to the previous/next chapter, rolling across book boundaries
+(`nextChapterRef`/`prevChapterRef` — pure arithmetic against `api.ts`'s
+canonical chapter-count table, no round-trip needed to detect a book edge).
+Disabled at the two edges of the canon (Genesis 1 / Revelation's last
+chapter). Always lands on the target chapter's first verse; jumping to "no
+specific verse" scrolls the container to its actual top rather than scrolling
+verse 1's element into view, so a passage heading above verse 1 (if any)
+stays visible instead of being scrolled just out of frame. These step whole
+chapters, not individual verses — an initial verse-by-verse version was
+narrowed to chapters, which is what was actually wanted.
+
 **TOC drawer** (`reader/TocDrawer.tsx`). Slides in over the Reader body
 (spring). Books are listed by testament as accordions; expanding a book reveals a
 grid of chapter-number chips; clicking a chip navigates and closes the drawer.
 Chapter counts come from a fixed canonical table in `api.ts` (no backend query).
+
+Opening a note — the header **Notes** button, or a "Recently edited" row on
+Home — splits the new Notes panel beside an already-open Reader (the active
+one if there is one, else the first) on the side set by Settings ▸ Notes ▸
+**Open notes on** (`ws.notesSplitSide`, left/right, default right; see
+`dock.tsx`'s `openNotes`). With no Reader open, it's placed wherever dockview
+would otherwise put it.
 
 **Notes.** Header, left to right: a hamburger toggles the note-list sidebar
 (shows an active/accent state while open), a fixed-width search field filters
@@ -277,23 +339,66 @@ note's anchors joined as a preview line (`John 3:16 · Rom 8:28`).
 
 ## 7. Navigation & cross-panel events
 
-Two navigation mechanisms, both driving the **active** Reader (opening one if
+Three navigation mechanisms, all driving the **active** Reader (opening one if
 none exists):
 
 - **⌘K / Ctrl-K command palette**: type `John 3:16`; fuzzy-matches book
   name/abbr, Enter jumps.
 - **Reader TOC drawer**: per-Reader book/chapter picker.
+- **Note anchor rows** (`NotesAnchorBar.tsx`): clicking an anchor jumps the
+  active Reader the same way.
 
 Coordination uses `useDock().gotoReference(bookId, chapter, verse?)` plus two
 window `CustomEvent`s:
 
-| Event         | Dispatched by                    | Consumed by             |
-| ------------- | -------------------------------- | ----------------------- |
-| `doxa:goto`   | `gotoReference` (palette/search) | the active Reader panel |
-| `doxa:search` | header global search submit      | the Search panel        |
+| Event         | Dispatched by                         | Consumed by             |
+| ------------- | ------------------------------------- | ----------------------- |
+| `doxa:goto`   | `gotoReference` (palette/TOC/anchors) | the active Reader panel |
+| `doxa:search` | header global search submit           | the Search panel        |
 
 The active Reader also pushes its reference/translation into the workspace store
 via `onDidActiveChange`, which is what the status bar reads.
+
+`doxa:goto` carries the target reader panel's `id` in its detail, dispatched
+by `gotoReference` and matched against `api.id` in `ReaderPanel`'s listener —
+deliberately not `api.isActive`, since `gotoReference` calls `setActive()`
+right before dispatching and `isActive` isn't guaranteed to have propagated
+by the time the event is handled; matching by id can't be affected by that
+timing.
+
+The event is handled by `ReaderPanel.jumpTo`, which also backs the TOC
+drawer's picker and the Reader's chapter up/down buttons (`stepChapter`):
+
+- **Same chapter already displayed** (e.g. an anchor to a different verse in
+  the chapter you're reading, or stepping within the loaded chapter): no
+  fetch, just `scrollIntoView({ block: "start", behavior: "smooth" })` on the
+  `[data-book][data-chapter][data-verse]` element — safe to animate since
+  there's no background loading to race against.
+- **Different chapter** (TOC, ⌘K/an anchor to another chapter, or the chapter
+  buttons): fetches it (`get_chapter` + `section_headings_for_chapter`),
+  replaces what's displayed, and once that commits, lands on the target verse
+  _instantly_ (`behavior` omitted — there's no prior chapter content to
+  animate from), then flashes it (`.verse-flash`, `shell.css` — a ~900ms
+  `background-color` pulse reusing `--accent-rgb`, respects
+  `prefers-reduced-motion` the same way `tokens.css`'s dockview-transition
+  override does) so it's obvious where you landed, since an instant swap
+  alone doesn't otherwise show that.
+
+Both cases resolve "no specific verse requested" (TOC picks, the chapter
+buttons) by scrolling the _container_ to its own top rather than
+`scrollIntoView`-ing verse 1's element — the latter would put verse 1 itself
+flush at the top and scroll any passage heading above it out of view.
+
+Earlier implementations tried continuous-scroll (a hand-rolled multi-chapter
+window, then a `react-virtuoso`-virtualized one) so a jump could sometimes
+resolve as an in-place smooth scroll instead of a full reset. Both kept
+producing the same bug — a scroll animation racing against background chapter
+loading, landing on the wrong verse or triggering runaway scrolling — in a
+new form every time the coordination got more complex. Single-chapter display
+removes the race by construction: only one chapter is ever mounted, it's
+loaded synchronously before it's shown, and the scroll is a non-animated jump
+against content that's already fully rendered — there's nothing left to race
+against.
 
 ---
 
@@ -346,7 +451,17 @@ Each has an upgrade path noted in-code:
 - Tab right-click **Copy reference** always copies the globally active
   Reader's reference, not necessarily the reference of the specific panel
   right-clicked (there's no per-panel reference lookup yet).
-- No prev/next chapter controls in the Reader: navigation is TOC + ⌘K.
+- The Reader shows one chapter at a time, not continuous scroll — deliberately
+  removed (see §6/§7) after repeated scroll-vs-background-loading race bugs;
+  moving between chapters is via TOC, ⌘K/a note anchor, or the chapter
+  up/down buttons, not scrolling past the chapter's edge.
+- The Reader's up/down buttons step whole **chapters**, not individual
+  verses — an initial verse-by-verse version was narrowed down to chapters
+  once built, since chapter-level stepping was what was actually wanted.
+- The middle-snap divider behavior (§5) only activates for exactly two open
+  groups, and only snaps on releasing the drag (dockview's dimension-change
+  event doesn't fire continuously while dragging) — not a live magnetic pull,
+  and not defined for 3+ groups.
 - Cross-references panel deferred (empty data table).
 - **Home**'s recently-edited-notes rows open Notes generally rather than
   jumping straight to that note (no per-note-open API yet).

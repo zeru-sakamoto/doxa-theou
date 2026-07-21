@@ -1,24 +1,30 @@
 // Reader — one panel, one translation ("version-dedicated"), chosen at open.
 // Header carries the TOC toggle, current reference, and the bound version.
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-} from "react";
+// Shows exactly one chapter at a time — no continuous scroll. A jump (TOC,
+// Cmd-K, note anchor, or the chapter up/down buttons) fetches the target
+// chapter (skipped if it's already the one displayed), swaps it in, and
+// lands on the target verse once that chapter's DOM has committed.
+// Deliberately simple: with only one chapter ever mounted, the target verse
+// element always already exists in the DOM by the time the scroll runs, so
+// there's nothing for it to race against.
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { IDockviewPanelProps } from "dockview-react";
 import {
+  chapterCount,
   getChapter,
   sectionHeadingsForChapter,
   type SectionHeading,
   type Verse,
 } from "../api";
-import { useNotes } from "../state/notes";
 import { useWorkspace } from "../state/workspace";
-import { BulletListIcon, MenuIcon, ParagraphIcon } from "../workspace/icons";
-import { PassageHeading } from "./reader/PassageHeading";
+import {
+  BulletListIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  MenuIcon,
+  ParagraphIcon,
+} from "../workspace/icons";
+import { ChapterView } from "./reader/ChapterView";
 import { TocDrawer } from "./reader/TocDrawer";
 
 export interface ReaderParams {
@@ -28,54 +34,239 @@ export interface ReaderParams {
   verse?: number;
 }
 
+interface LoadedChapter {
+  bookId: number;
+  chapter: number;
+  verses: Verse[];
+  headings: SectionHeading[];
+}
+
+interface CurrentPos {
+  bookId: number;
+  chapter: number;
+  verse: number;
+}
+
+// Brief highlight pulse on the verse a chapter-changing jump lands on (see
+// FLASH_DURATION_MS below) — flashVerse is cleared after this.
+const FLASH_DURATION_MS = 900;
+
+// Pure arithmetic against the static chapterCount table — no round-trip
+// needed to detect a book boundary. null means the absolute edge of the
+// canon (before Genesis 1 / after Revelation's last chapter).
+function nextChapterRef(
+  bookId: number,
+  chapter: number,
+): { bookId: number; chapter: number } | null {
+  if (chapter < chapterCount(bookId)) return { bookId, chapter: chapter + 1 };
+  if (bookId < 66) return { bookId: bookId + 1, chapter: 1 };
+  return null;
+}
+
+function prevChapterRef(
+  bookId: number,
+  chapter: number,
+): { bookId: number; chapter: number } | null {
+  if (chapter > 1) return { bookId, chapter: chapter - 1 };
+  if (bookId > 1)
+    return { bookId: bookId - 1, chapter: chapterCount(bookId - 1) };
+  return null;
+}
+
+function scrollToVerse(
+  container: HTMLElement | null,
+  bookId: number,
+  chapter: number,
+  verse: number | undefined,
+  behavior: ScrollBehavior,
+) {
+  if (!container) return;
+  const el =
+    verse != null
+      ? container.querySelector<HTMLElement>(
+          `[data-book="${bookId}"][data-chapter="${chapter}"][data-verse="${verse}"]`,
+        )
+      : null;
+  if (el) el.scrollIntoView({ block: "start", behavior });
+  else container.scrollTop = 0;
+}
+
 export function ReaderPanel({
   api,
   params,
 }: IDockviewPanelProps<ReaderParams>) {
   const ws = useWorkspace();
-  const { anchorIndex } = useNotes();
   const translation = params.translation ?? ws.defaultTranslation;
-  const [bookId, setBookId] = useState(params.bookId ?? 43); // John
-  const [chapter, setChapter] = useState(params.chapter ?? 1);
-  const [verses, setVerses] = useState<Verse[]>([]);
-  const [headings, setHeadings] = useState<SectionHeading[]>([]);
+  const initialBookId = params.bookId ?? 43; // John
+  const initialChapter = params.chapter ?? 1;
+
+  const [chapter, setChapter] = useState<LoadedChapter | null>(null);
+  const [currentPos, setCurrentPos] = useState<CurrentPos>({
+    bookId: initialBookId,
+    chapter: initialChapter,
+    verse: params.verse ?? 1,
+  });
+  const [flashVerse, setFlashVerse] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [tocOpen, setTocOpen] = useState(false);
   const [flowMode, setFlowMode] = useState<"rows" | "paragraph">("rows");
-  const [pendingVerse, setPendingVerse] = useState(params.verse);
-  const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Load whenever the target passage or version changes.
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    getChapter(bookId, chapter, translation)
-      .then((vs) => !cancelled && setVerses(vs))
-      .catch((e) => !cancelled && setError(String(e)))
-      .finally(() => !cancelled && setLoading(false));
-    // Headings only exist for ESV (that's the only translation they were parsed
-    // from); other translations get none. A failure here is non-fatal either way —
-    // just render without them.
-    sectionHeadingsForChapter(bookId, chapter, translation)
-      .then((hs) => !cancelled && setHeadings(hs))
-      .catch(() => !cancelled && setHeadings([]));
-    return () => {
-      cancelled = true;
-    };
-  }, [bookId, chapter, translation]);
+  const containerRef = useRef<HTMLDivElement>(null);
+  // Bumped on every jump so a slow in-flight fetch that resolves after a
+  // newer jump discards its result instead of corrupting the display.
+  const generationRef = useRef(0);
+  // Verse to land on once the chapter just fetched actually commits.
+  const pendingVerseRef = useRef<number | undefined>(undefined);
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
 
-  // Keep the dockview tab label in sync.
+  useEffect(() => () => clearTimeout(flashTimerRef.current), []);
+
+  const flashVerseNow = useCallback((verse: number) => {
+    clearTimeout(flashTimerRef.current);
+    setFlashVerse(verse);
+    flashTimerRef.current = setTimeout(
+      () => setFlashVerse(null),
+      FLASH_DURATION_MS,
+    );
+  }, []);
+
+  // Jump to a reference. Already displaying this exact chapter → resolve the
+  // verse and smooth-scroll to it in place, no fetch. Otherwise fetch the
+  // target chapter and land on it (instantly, with a flash — see the effect
+  // below) once it resolves.
+  const jumpTo = useCallback(
+    (bookId: number, chapterNum: number, verse?: number) => {
+      if (
+        chapter &&
+        chapter.bookId === bookId &&
+        chapter.chapter === chapterNum
+      ) {
+        const resolved = verse ?? chapter.verses[0]?.verse;
+        if (resolved == null) return;
+        setCurrentPos({ bookId, chapter: chapterNum, verse: resolved });
+        // Pass the original (possibly undefined) verse, not `resolved` — no
+        // verse requested means "top of chapter", which should scroll to the
+        // container's actual top so a passage heading above verse 1 stays
+        // visible, not scrollIntoView verse 1 itself (which would cut it off).
+        scrollToVerse(
+          containerRef.current,
+          bookId,
+          chapterNum,
+          verse,
+          "smooth",
+        );
+        return;
+      }
+      const gen = ++generationRef.current;
+      pendingVerseRef.current = verse;
+      setLoading(true);
+      setError(null);
+      Promise.all([
+        getChapter(bookId, chapterNum, translation),
+        // Headings only exist for ESV; a failure here is non-fatal —
+        // just render the chapter without them.
+        sectionHeadingsForChapter(bookId, chapterNum, translation).catch(
+          () => [] as SectionHeading[],
+        ),
+      ])
+        .then(([vs, hs]) => {
+          if (gen !== generationRef.current) return;
+          setChapter({ bookId, chapter: chapterNum, verses: vs, headings: hs });
+        })
+        .catch((e) => {
+          if (gen !== generationRef.current) return;
+          setError(String(e));
+        })
+        .finally(() => {
+          if (gen === generationRef.current) setLoading(false);
+        });
+    },
+    [chapter, translation],
+  );
+
+  // Consume the pending verse once the freshly-fetched chapter's DOM has
+  // committed — every verse element already exists at this point (the whole
+  // chapter renders in one shot), so this always finds its target. This
+  // effect only runs for an actual chapter change (jumpTo's in-place path
+  // above never touches `chapter` state), so the landing is always instant
+  // + flashed, never smooth — there's no prior chapter content to animate
+  // from.
   useEffect(() => {
-    api.setTitle(`${ws.bookAbbr(bookId)} ${chapter} · ${translation}`);
-  }, [api, bookId, chapter, translation, ws]);
+    if (!chapter) return;
+    const pending = pendingVerseRef.current;
+    pendingVerseRef.current = undefined;
+    const resolved = pending ?? chapter.verses[0]?.verse;
+    setCurrentPos({
+      bookId: chapter.bookId,
+      chapter: chapter.chapter,
+      verse: resolved ?? 1,
+    });
+    // Pass `pending` (possibly undefined), not `resolved` — see the same
+    // note in jumpTo above: no requested verse means scroll to the actual
+    // top of the chapter, not verse 1's element specifically.
+    scrollToVerse(
+      containerRef.current,
+      chapter.bookId,
+      chapter.chapter,
+      pending,
+      "auto",
+    );
+    if (resolved != null) flashVerseNow(resolved);
+  }, [chapter, flashVerseNow]);
+
+  // Step to the adjacent chapter (and across book boundaries) — same
+  // canon-wide rollover the old chapter buttons had. Always lands on the
+  // target chapter's first verse.
+  const stepChapter = useCallback(
+    (direction: 1 | -1) => {
+      if (!chapter) return;
+      const ref =
+        direction === 1
+          ? nextChapterRef(chapter.bookId, chapter.chapter)
+          : prevChapterRef(chapter.bookId, chapter.chapter);
+      if (!ref) return; // at the edge of the canon — button is disabled anyway
+      jumpTo(ref.bookId, ref.chapter);
+    },
+    [chapter, jumpTo],
+  );
+
+  // Initial load — runs once on mount. `translation`/initial target are
+  // fixed for the lifetime of a Reader instance (dockview panel params
+  // don't change after creation), so this never needs to re-run.
+  useEffect(() => {
+    jumpTo(initialBookId, initialChapter, params.verse);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep the dockview tab label in sync with the displayed chapter.
+  useEffect(() => {
+    api.setTitle(
+      `${ws.bookAbbr(currentPos.bookId)} ${currentPos.chapter} · ${translation}`,
+    );
+  }, [api, currentPos, translation, ws.bookAbbr]);
 
   // When this Reader is the active panel, it owns the status bar + Cmd-K target.
+  // Depends on the individual setters (each stable in state/workspace.tsx)
+  // rather than the whole `ws` object, whose identity changes on every one
+  // of these calls — depending on `ws` itself would recreate this callback
+  // every time it runs, re-triggering the effect below in a loop.
   const markActive = useCallback(() => {
-    ws.setActiveReference({ bookId, chapter });
+    ws.setActiveReference({
+      bookId: currentPos.bookId,
+      chapter: currentPos.chapter,
+    });
     ws.setActiveTranslation(translation);
-  }, [ws, bookId, chapter, translation]);
+    ws.setLastReaderPosition({ ...currentPos, translation });
+  }, [
+    ws.setActiveReference,
+    ws.setActiveTranslation,
+    ws.setLastReaderPosition,
+    currentPos,
+    translation,
+  ]);
 
   useEffect(() => {
     const d = api.onDidActiveChange(() => api.isActive && markActive());
@@ -83,120 +274,42 @@ export function ReaderPanel({
     return () => d.dispose();
   }, [api, markActive]);
 
-  // Cmd-K / search "go to reference" drives whichever Reader is active.
+  // Cmd-K / search / note-anchor "go to reference" drives whichever Reader
+  // dock.gotoReference targeted. Matched by panelId rather than api.isActive:
+  // gotoReference calls setActive() right before dispatching, and isActive
+  // isn't guaranteed to have flipped by the time this handler runs, which
+  // could silently drop the jump.
   useEffect(() => {
     function onGoto(e: Event) {
-      if (!api.isActive) return;
       const d = (e as CustomEvent).detail as {
+        panelId: string;
         bookId: number;
         chapter: number;
         verse?: number;
       };
-      setBookId(d.bookId);
-      setChapter(d.chapter);
-      setPendingVerse(d.verse);
+      if (d.panelId !== api.id) return;
+      jumpTo(d.bookId, d.chapter, d.verse);
     }
     window.addEventListener("doxa:goto", onGoto);
     return () => window.removeEventListener("doxa:goto", onGoto);
-  }, [api]);
+  }, [api, jumpTo]);
 
-  // Scroll the target verse into view once its chapter has loaded.
-  useEffect(() => {
-    if (pendingVerse == null || verses.length === 0) return;
-    const el = scrollRef.current?.querySelector(
-      `[data-verse="${pendingVerse}"]`,
-    );
-    el?.scrollIntoView({ block: "start" });
-    setPendingVerse(undefined);
-  }, [pendingVerse, verses]);
-
-  const navigate = useCallback((b: number, c: number) => {
-    setBookId(b);
-    setChapter(c);
-    setTocOpen(false);
-  }, []);
-
-  // Note anchors landing in this chapter → per-verse highlight washes.
-  const highlights = useMemo(
-    () => anchorIndex.get(`${bookId}:${chapter}`) ?? [],
-    [anchorIndex, bookId, chapter],
-  );
-
-  // Colors covering a verse. Multiple notes on one verse stack + mix
-  // (background-blend-mode: multiply), Logos-style. Notes with no color
-  // don't highlight at all.
-  const verseColors = useCallback(
-    (verse: number): string[] => {
-      const colors = new Set<string>();
-      for (const h of highlights) {
-        if (!h.color) continue;
-        const start = h.verseStart ?? 1; // whole-chapter anchor covers all
-        const end = h.verseEnd ?? Number.MAX_SAFE_INTEGER;
-        if (verse >= start && verse <= end) colors.add(h.color);
-      }
-      return [...colors];
+  const navigate = useCallback(
+    (b: number, c: number) => {
+      jumpTo(b, c);
+      setTocOpen(false);
     },
-    [highlights],
+    [jumpTo],
   );
 
-  // Low-alpha wash painted on just the verse text (inline, not the row),
-  // so it hugs the words instead of stretching full-width; box-decoration-break
-  // re-applies the padding/background per visual line when a verse wraps.
-  const highlightStyle = useCallback(
-    (verse: number): CSSProperties | undefined => {
-      const list = verseColors(verse);
-      if (list.length === 0) return undefined;
-      const layers = list.map((c) => {
-        const wash = `color-mix(in srgb, ${c} 42%, transparent)`;
-        return `linear-gradient(${wash}, ${wash})`;
-      });
-      return {
-        backgroundImage: layers.join(", "),
-        backgroundBlendMode: list.length > 1 ? "multiply" : "normal",
-        padding: "0.05em 0.3em",
-        margin: "-0.05em -0.3em",
-        borderRadius: "var(--radius-sm)",
-        boxDecorationBreak: "clone",
-        WebkitBoxDecorationBreak: "clone",
-      } as CSSProperties;
-    },
-    [verseColors],
-  );
-
-  // Split the chapter into segments at each heading's starting verse, so a
-  // passage heading renders once, right before the verse it introduces.
-  const segments = useMemo(() => {
-    const headingAt = new Map(
-      headings
-        .filter((h) => h.chapter === chapter)
-        .map((h) => [h.verse_start, h.heading]),
-    );
-    const segs: { heading?: string; verses: Verse[] }[] = [];
-    for (const v of verses) {
-      const heading = headingAt.get(v.verse);
-      if (heading != null || segs.length === 0)
-        segs.push({ heading, verses: [v] });
-      else segs[segs.length - 1].verses.push(v);
-    }
-    return segs;
-  }, [verses, headings, chapter]);
-
-  // Row mode only: within a segment, consecutive verses sharing a color are
-  // grouped so the left bracket marker spans the whole run instead of
-  // restarting per line. A heading is always a hard break between groups.
-  const colorGroups = useCallback(
-    (list: Verse[]) => {
-      const groups: { color?: string; verses: Verse[] }[] = [];
-      for (const v of list) {
-        const color = verseColors(v.verse)[0];
-        const last = groups[groups.length - 1];
-        if (last && last.color === color) last.verses.push(v);
-        else groups.push({ color, verses: [v] });
-      }
-      return groups;
-    },
-    [verseColors],
-  );
+  const prevRef = chapter
+    ? prevChapterRef(chapter.bookId, chapter.chapter)
+    : null;
+  const nextRef = chapter
+    ? nextChapterRef(chapter.bookId, chapter.chapter)
+    : null;
+  const disablePrev = !chapter || !prevRef;
+  const disableNext = !chapter || !nextRef;
 
   return (
     <div
@@ -214,7 +327,7 @@ export function ReaderPanel({
           <MenuIcon size={16} />
         </button>
         <span className="font-medium text-(length:--text-sm)">
-          {ws.bookName(bookId)} {chapter}
+          {ws.bookName(currentPos.bookId)} {currentPos.chapter}
         </span>
         <button
           className={`iconbtn ml-auto${flowMode === "paragraph" ? " is-active" : ""}`}
@@ -240,87 +353,53 @@ export function ReaderPanel({
         </span>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-auto">
+      <div ref={containerRef} className="flex-1 overflow-auto">
         {error && <p className="panel__error">{error}</p>}
         {!error && loading && <p className="panel__muted">Loading…</p>}
-        {!error && !loading && verses.length === 0 && (
+        {!error && !loading && chapter && chapter.verses.length === 0 && (
           <p className="panel__muted">
-            No verses for {ws.bookName(bookId)} {chapter} in {translation}.
+            No verses for {ws.bookName(chapter.bookId)} {chapter.chapter} in{" "}
+            {translation}.
           </p>
         )}
-        {!error && verses.length > 0 && flowMode === "rows" && (
-          <div className="py-4 px-6 max-w-[70ch] font-(family-name:--font-serif) text-(length:--text-read) leading-(--lh-read) text-ink">
-            {segments.map((seg, si) => (
-              <div key={si}>
-                {seg.heading && (
-                  <PassageHeading
-                    text={seg.heading}
-                    className={si === 0 ? "mt-0" : "mt-8"}
-                  />
-                )}
-                {colorGroups(seg.verses).map((g, gi) => (
-                  <div
-                    key={gi}
-                    className={g.color ? "-ml-1.5 pl-1.5" : undefined}
-                    style={
-                      g.color
-                        ? { boxShadow: `inset 3px 0 0 ${g.color}` }
-                        : undefined
-                    }
-                  >
-                    {g.verses.map((v) => (
-                      <div
-                        key={v.verse_ref_id}
-                        data-verse={v.verse}
-                        className="mb-[0.35em] scroll-mt-4"
-                      >
-                        <sup className="font-(family-name:--font-mono) text-[0.72em] font-medium text-accent align-super mr-[0.4em]">
-                          {v.verse}
-                        </sup>
-                        <span style={highlightStyle(v.verse)}>{v.text}</span>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
+        {!error && chapter && chapter.verses.length > 0 && (
+          <ChapterView
+            bookId={chapter.bookId}
+            chapter={chapter.chapter}
+            verses={chapter.verses}
+            headings={chapter.headings}
+            flowMode={flowMode}
+            flashVerse={flashVerse}
+          />
         )}
-        {!error && verses.length > 0 && flowMode === "paragraph" && (
-          <div className="py-4 px-6 max-w-[70ch]">
-            {segments.map((seg, si) => (
-              <div key={si}>
-                {seg.heading && (
-                  <PassageHeading
-                    text={seg.heading}
-                    className={si === 0 ? "mt-0" : "mt-8"}
-                  />
-                )}
-                <p className="m-0 font-(family-name:--font-serif) text-(length:--text-read) leading-(--lh-read) text-ink">
-                  {seg.verses.map((v) => (
-                    <span
-                      key={v.verse_ref_id}
-                      data-verse={v.verse}
-                      className="scroll-mt-4"
-                    >
-                      <sup className="font-(family-name:--font-mono) text-[0.72em] font-medium text-accent align-super mr-[0.3em]">
-                        {v.verse}
-                      </sup>
-                      <span style={highlightStyle(v.verse)}>{v.text} </span>
-                    </span>
-                  ))}
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
+      </div>
+
+      <div className="reader__nav">
+        <button
+          className="iconbtn"
+          title="Previous chapter"
+          aria-label="Previous chapter"
+          disabled={disablePrev}
+          onClick={() => stepChapter(-1)}
+        >
+          <ChevronUpIcon size={16} />
+        </button>
+        <button
+          className="iconbtn"
+          title="Next chapter"
+          aria-label="Next chapter"
+          disabled={disableNext}
+          onClick={() => stepChapter(1)}
+        >
+          <ChevronDownIcon size={16} />
+        </button>
       </div>
 
       <TocDrawer
         open={tocOpen}
         books={ws.books}
-        currentBookId={bookId}
-        currentChapter={chapter}
+        currentBookId={currentPos.bookId}
+        currentChapter={currentPos.chapter}
         onNavigate={navigate}
         onClose={() => setTocOpen(false)}
       />

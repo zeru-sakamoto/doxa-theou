@@ -80,6 +80,32 @@ export function SettingsPanel() {
             Notes
           </h3>
           <div className="flex items-center justify-between gap-3 py-2">
+            <div className="flex flex-col">
+              <span className="text-(length:--text-sm)">Open notes on</span>
+              <span className="panel__muted">
+                Side to split a note to when a Reader is already open
+              </span>
+            </div>
+            <div className="seg" role="group" aria-label="Open notes on">
+              <button
+                className={
+                  "seg__btn" + (ws.notesSplitSide === "left" ? " is-on" : "")
+                }
+                onClick={() => ws.setNotesSplitSide("left")}
+              >
+                Left
+              </button>
+              <button
+                className={
+                  "seg__btn" + (ws.notesSplitSide === "right" ? " is-on" : "")
+                }
+                onClick={() => ws.setNotesSplitSide("right")}
+              >
+                Right
+              </button>
+            </div>
+          </div>
+          <div className="flex items-center justify-between gap-3 py-2">
             <span className="text-(length:--text-sm)">
               Default highlight color
             </span>

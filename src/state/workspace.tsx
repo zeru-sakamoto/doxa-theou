@@ -21,10 +21,17 @@ import {
 import type { PaletteId } from "../panels/notes/notes";
 
 export type Theme = "light" | "dark";
+export type NotesSplitSide = "left" | "right";
 export interface Reference {
   bookId: number;
   chapter: number;
   verse?: number;
+}
+export interface LastReaderPosition {
+  bookId: number;
+  chapter: number;
+  verse?: number;
+  translation: string;
 }
 
 export const DEFAULT_NOTES_HIGHLIGHT_COLOR = "var(--highlight-indigo)";
@@ -43,6 +50,8 @@ interface WorkspaceCtx {
   setActiveTranslation: (code: string) => void;
   activeReference: Reference | null;
   setActiveReference: (r: Reference | null) => void;
+  lastReaderPosition: LastReaderPosition | null;
+  setLastReaderPosition: (p: LastReaderPosition | null) => void;
   bookName: (id: number) => string;
   bookAbbr: (id: number) => string;
   notesHighlightColor: string;
@@ -53,6 +62,8 @@ interface WorkspaceCtx {
   setNotesFolder: (p: string | null) => void;
   anchorPalette: PaletteId;
   setAnchorPalette: (p: PaletteId) => void;
+  notesSplitSide: NotesSplitSide;
+  setNotesSplitSide: (s: NotesSplitSide) => void;
 }
 
 const Ctx = createContext<WorkspaceCtx | null>(null);
@@ -62,6 +73,18 @@ const NOTES_HIGHLIGHT_COLOR_KEY = "doxa-notes-highlight-color";
 const NOTES_LAST_COLOR_KEY = "doxa-notes-last-color";
 const NOTES_FOLDER_KEY = "doxa-notes-folder";
 const ANCHOR_PALETTE_KEY = "doxa-anchor-palette";
+const LAST_READER_POSITION_KEY = "doxa-last-reader-position";
+const NOTES_SPLIT_SIDE_KEY = "doxa-notes-split-side";
+
+function initialLastReaderPosition(): LastReaderPosition | null {
+  const raw = localStorage.getItem(LAST_READER_POSITION_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
 
 function initialTheme(): Theme {
   const saved = localStorage.getItem(THEME_KEY);
@@ -81,6 +104,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [activeReference, setActiveReference] = useState<Reference | null>(
     null,
   );
+  const [lastReaderPosition, setLastReaderPositionState] =
+    useState<LastReaderPosition | null>(initialLastReaderPosition);
   const [notesHighlightColor, setNotesHighlightColorState] = useState(
     () =>
       localStorage.getItem(NOTES_HIGHLIGHT_COLOR_KEY) ??
@@ -97,6 +122,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   >(() => localStorage.getItem(DEFAULT_TRANSLATION_KEY));
   const [anchorPalette, setAnchorPaletteState] = useState<PaletteId>(
     () => (localStorage.getItem(ANCHOR_PALETTE_KEY) as PaletteId) || "koine",
+  );
+  const [notesSplitSide, setNotesSplitSideState] = useState<NotesSplitSide>(
+    () =>
+      (localStorage.getItem(NOTES_SPLIT_SIDE_KEY) as NotesSplitSide) || "right",
   );
 
   // Apply + persist theme (before paint to avoid a flash).
@@ -154,6 +183,15 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setAnchorPaletteState(p);
     localStorage.setItem(ANCHOR_PALETTE_KEY, p);
   }, []);
+  const setNotesSplitSide = useCallback((s: NotesSplitSide) => {
+    setNotesSplitSideState(s);
+    localStorage.setItem(NOTES_SPLIT_SIDE_KEY, s);
+  }, []);
+  const setLastReaderPosition = useCallback((p: LastReaderPosition | null) => {
+    setLastReaderPositionState(p);
+    if (p) localStorage.setItem(LAST_READER_POSITION_KEY, JSON.stringify(p));
+    else localStorage.removeItem(LAST_READER_POSITION_KEY);
+  }, []);
 
   // The default for newly-opened Readers: the user's saved choice, else the
   // DB's is_default. Existing Readers keep the translation they opened with.
@@ -178,6 +216,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setActiveTranslation,
       activeReference,
       setActiveReference,
+      lastReaderPosition,
+      setLastReaderPosition,
       bookName,
       bookAbbr,
       notesHighlightColor,
@@ -188,6 +228,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setNotesFolder,
       anchorPalette,
       setAnchorPalette,
+      notesSplitSide,
+      setNotesSplitSide,
     }),
     [
       theme,
@@ -201,6 +243,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setDefaultTranslation,
       activeTranslation,
       activeReference,
+      lastReaderPosition,
+      setLastReaderPosition,
       bookName,
       bookAbbr,
       notesHighlightColor,
@@ -211,6 +255,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setNotesFolder,
       anchorPalette,
       setAnchorPalette,
+      notesSplitSide,
+      setNotesSplitSide,
     ],
   );
 

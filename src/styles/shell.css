@@ -73,6 +73,46 @@
     @apply flex items-center gap-2 h-[30px] mt-1 px-2 border-b border-border bg-panel shrink-0 grow-0;
   }
 
+  /* Floating verse prev/next control, pinned to the right edge of the
+   Reader body regardless of scroll position. */
+  .reader__nav {
+    @apply absolute right-3 top-1/2 -translate-y-1/2 z-10 flex flex-col border border-border-strong rounded-[var(--radius-md)] bg-panel shadow-[var(--shadow-2)] overflow-hidden;
+  }
+  .reader__nav .iconbtn {
+    @apply w-8 h-8 rounded-none;
+  }
+  .reader__nav .iconbtn + .iconbtn {
+    @apply border-t border-border;
+  }
+  .reader__nav .iconbtn:disabled {
+    @apply opacity-35 cursor-default hover:bg-transparent hover:text-muted;
+  }
+
+  /* Brief landing highlight on a chapter-changing jump's target verse (TOC,
+   ⌘K, note anchor, or the verse buttons crossing a chapter boundary) — the
+   chapter swap itself is instant, so this is what tells you where you
+   landed. Reused --accent-rgb so it's the same hue as everything else,
+   just animated. */
+  .verse-flash {
+    animation: verse-flash-pulse 900ms ease-out;
+  }
+  @keyframes verse-flash-pulse {
+    0% {
+      background-color: rgb(var(--accent-rgb) / 0);
+    }
+    25% {
+      background-color: rgb(var(--accent-rgb) / 0.35);
+    }
+    100% {
+      background-color: rgb(var(--accent-rgb) / 0);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .verse-flash {
+      animation-duration: 1ms;
+    }
+  }
+
   .seg {
     @apply inline-flex border border-border rounded-[var(--radius-sm)] overflow-hidden;
   }
@@ -91,5 +131,14 @@
   .dock-host > .dockview-theme-vs {
     flex: 1;
     min-width: 0;
+  }
+
+  /* Live "this is where it'll snap" guide line while dragging a two-group
+   divider within the snap zone (see Dockview's pointer-tracking effect in
+   dock.tsx) — positioned/sized (2px thick, stretched the other axis) via
+   inline style since that's per-drag; this class only carries the fixed
+   visual treatment. */
+  .snap-guide {
+    @apply absolute z-(--z-drawer) pointer-events-none bg-accent shadow-[0_0_6px_1px_rgb(var(--accent-rgb)/0.6)];
   }
 }
