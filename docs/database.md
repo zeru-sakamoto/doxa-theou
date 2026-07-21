@@ -64,9 +64,21 @@ import (not present in the generated `bible.sqlite`):
 ## Where the app reads it from
 
 Rust opens `bible.sqlite` **read-only** from the app-local-data dir (e.g.
-`%LOCALAPPDATA%/com.zeru-sakamoto.doxa-theou/bible.sqlite` on Windows), not
-the repo root. After running the import script, copy the generated file there
-once. If it's missing, the `db::open` error prints the exact expected path.
+`%LOCALAPPDATA%/com.zeru-sakamoto.doxa-theou/bible.sqlite` on Windows), not the
+repo root. If it's missing, the `db::open` error prints the exact expected path
+and the shell shows a "Bible database not found" screen.
+
+Two ways to get the generated file there:
+
+- **In-app (recommended):** Settings ▸ **Bible database** ▸ _Import database…_,
+  then pick the `bible.sqlite` the script produced (anywhere on disk). The app
+  validates it, installs it over the active DB atomically, and reloads. This is
+  also how you swap in a rebuilt DB later (e.g. after adding a translation). See
+  `import_bible_db` in [`architecture.md`](architecture.md).
+- **By hand:** copy the generated file into the app-local-data dir yourself.
+
+Both install the same normalized `bible.sqlite`; only `import_bible.py` turns a
+raw source DB into that shape.
 
 See `DESIGN.md` for the full schema, the Rust command surface
 (`src-tauri/src/db.rs`), and the roadmap (cross-references, semantic search).

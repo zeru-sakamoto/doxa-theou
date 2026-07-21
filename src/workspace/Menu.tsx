@@ -2,6 +2,7 @@
 // menus and the panel overflow (⋯). Closes on outside-click / Escape.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { DUR_FAST } from "../motion";
 
 export interface MenuAction {
   label: string;
@@ -63,7 +64,7 @@ export function Menu({
             initial={reduce ? { opacity: 0 } : { opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={reduce ? { opacity: 0 } : { opacity: 0, y: -4 }}
-            transition={{ duration: 0.12 }}
+            transition={{ duration: DUR_FAST }}
           >
             {items.map((it, i) => (
               <button

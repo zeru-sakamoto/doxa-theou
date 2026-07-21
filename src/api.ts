@@ -73,6 +73,11 @@ export const listTranslations = () =>
 export const search = (query: string, translation?: string) =>
   invoke<SearchHit[]>("search", { query, translation });
 
+// Install a prebuilt bible.sqlite (from scripts/import_bible.py) as the active
+// Bible DB. Validated + atomically swapped in Rust; caller should reload after.
+export const importBibleDb = (source: string) =>
+  invoke<void>("import_bible_db", { source });
+
 // Bounded FIFO cache over get_chapter — one chapter is a few KB, so
 // keeping the last two dozen makes Reader back/forth and anchor previews free
 // (no IPC/SQLite round-trip) at near-zero memory. Insertion order = eviction

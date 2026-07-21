@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Δόξα Θεοῦ — doxa-theou</title>
+    <title>Δόξα Θεοῦ — Doxa Theou</title>
     <script>
       // Apply the saved/system theme before first paint (avoids a flash).
       (function () {
@@ -18,13 +18,40 @@
           document.documentElement.setAttribute("data-theme", t);
           document.documentElement.style.background =
             t === "dark" ? "#14161C" : "#F5F6F8";
+          // Text color for the boot wordmark below, so it's legible on the
+          // themed background before the app's CSS/fonts load.
+          document.documentElement.style.setProperty(
+            "--boot-fg",
+            t === "dark" ? "#E4E6EB" : "#1E2024",
+          );
         } catch (e) {}
       })();
     </script>
   </head>
 
   <body>
-    <div id="root"></div>
+    <!-- Boot wordmark shown from first paint until React mounts (which replaces
+         it), so the window is never blank while loading. position:fixed so it
+         fills the viewport before base.css sizes html/#root. Matches the React
+         LoadingScreen wordmark for a seamless handoff. -->
+    <div id="root">
+      <div
+        style="
+          position: fixed;
+          inset: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-family: Newsreader, Georgia, &quot;Times New Roman&quot;, serif;
+          font-weight: 600;
+          font-size: 32px;
+          letter-spacing: 0.01em;
+          color: var(--boot-fg);
+        "
+      >
+        Doxa&nbsp;Theou
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -15,7 +15,7 @@ import { chapterCount, getChapter, type Book } from "../../api";
 import { useWorkspace } from "../../state/workspace";
 import { parseQuery } from "../../workspace/CommandPalette";
 import { useDock } from "../../workspace/dock";
-import { CheckIcon, CloseIcon } from "../../workspace/icons";
+import { CheckIcon, CloseIcon, ICON } from "../../workspace/icons";
 import { parseAnchor } from "./notes";
 
 // Matches parseQuery's own trailing "chapter[:verse]" match — reused here to
@@ -204,7 +204,7 @@ function AnchorRow({
           onRemove(anchor);
         }}
       >
-        <CloseIcon size={12} />
+        <CloseIcon size={ICON.xs} />
       </button>
     </div>
   );
@@ -378,7 +378,7 @@ function AnchorComposer({
           aria-label="Add anchor"
           onClick={() => !error && onConfirm(value)}
         >
-          <CheckIcon size={12} />
+          <CheckIcon size={ICON.xs} />
         </button>
         <button
           type="button"
@@ -387,7 +387,7 @@ function AnchorComposer({
           aria-label="Cancel"
           onClick={onCancel}
         >
-          <CloseIcon size={12} />
+          <CloseIcon size={ICON.xs} />
         </button>
       </div>
       {error && (

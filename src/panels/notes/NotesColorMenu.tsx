@@ -6,6 +6,7 @@
 // swatch grid, not a flat action list, so workspace/Menu isn't reusable.
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { DUR_FAST } from "../../motion";
 import { useWorkspace } from "../../state/workspace";
 import { paletteById } from "./notes";
 
@@ -66,7 +67,7 @@ export function NotesColorMenu({ color, onChange }: Props) {
             initial={reduce ? { opacity: 0 } : { opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={reduce ? { opacity: 0 } : { opacity: 0, y: -4 }}
-            transition={{ duration: 0.12 }}
+            transition={{ duration: DUR_FAST }}
           >
             <button
               type="button"

@@ -2,6 +2,7 @@
 // and drives the active Reader (opening one if none). Navigation home #1.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { DUR_FAST, EASE_OUT } from "../motion";
 import type { Book } from "../api";
 import { useWorkspace } from "../state/workspace";
 import { useDock } from "./dock";
@@ -87,7 +88,7 @@ export function CommandPalette() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.12 }}
+          transition={{ duration: DUR_FAST }}
           onMouseDown={() => setOpen(false)}
         >
           <motion.div
@@ -98,7 +99,7 @@ export function CommandPalette() {
             }
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={reduce ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.98 }}
-            transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: 0.14, ease: EASE_OUT }}
           >
             <form
               onSubmit={(e) => {

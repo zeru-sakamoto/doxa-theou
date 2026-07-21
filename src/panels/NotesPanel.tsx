@@ -8,7 +8,7 @@ import { useNotes } from "../state/notes";
 import { formatReference, useWorkspace } from "../state/workspace";
 import { useDock } from "../workspace/dock";
 import { Menu } from "../workspace/Menu";
-import { CloseIcon, MenuIcon, MoreIcon } from "../workspace/icons";
+import { CloseIcon, ICON, MenuIcon, MoreIcon } from "../workspace/icons";
 import { NotesColorMenu } from "./notes/NotesColorMenu";
 import { NotesDrawer } from "./notes/NotesDrawer";
 import { NotesEditor } from "./notes/NotesEditor";
@@ -165,7 +165,7 @@ export function NotesPanel({ api, params }: IDockviewPanelProps<NotesParams>) {
           aria-expanded={drawerOpen}
           onClick={() => setDrawerOpen((o) => !o)}
         >
-          <MenuIcon size={16} />
+          <MenuIcon size={ICON.md} />
         </button>
         <input
           className="input w-[200px]"
@@ -212,7 +212,7 @@ export function NotesPanel({ api, params }: IDockviewPanelProps<NotesParams>) {
               },
             ]}
           >
-            <MoreIcon size={16} />
+            <MoreIcon size={ICON.md} />
           </Menu>
         </div>
       </div>
@@ -262,7 +262,7 @@ export function NotesPanel({ api, params }: IDockviewPanelProps<NotesParams>) {
                   aria-label={`Remove tag ${t}`}
                   onClick={() => removeTag(t)}
                 >
-                  <CloseIcon size={10} />
+                  <CloseIcon size={ICON.xs} />
                 </button>
               </span>
             ))}

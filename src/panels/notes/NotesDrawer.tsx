@@ -2,6 +2,7 @@
 // Unlike reader/TocDrawer (an ephemeral overlay), this is a persistent
 // collapsible column — the note body reflows around it when toggled.
 import { motion, useReducedMotion } from "motion/react";
+import { DRAWER_SPRING } from "../../motion";
 import type { MouseEvent } from "react";
 import { notePreview, type Note } from "./notes";
 
@@ -24,11 +25,7 @@ export function NotesDrawer({ open, notes, onSelect }: Props) {
       aria-hidden={!open}
       initial={false}
       animate={{ width: open ? SIDEBAR_WIDTH : 0 }}
-      transition={
-        reduce
-          ? { duration: 0 }
-          : { type: "spring", stiffness: 520, damping: 44 }
-      }
+      transition={reduce ? { duration: 0 } : DRAWER_SPRING}
     >
       <div className="w-[244px] h-full overflow-auto p-2 border-r border-border bg-panel">
         {notes.length === 0 ? (

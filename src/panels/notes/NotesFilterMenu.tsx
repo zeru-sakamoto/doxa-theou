@@ -4,8 +4,9 @@
 // body (button list/grid), so it isn't reused directly.
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { DUR_FAST } from "../../motion";
 import type { Book } from "../../api";
-import { FilterIcon } from "../../workspace/icons";
+import { FilterIcon, ICON } from "../../workspace/icons";
 
 interface Props {
   tags: string[];
@@ -58,7 +59,7 @@ export function NotesFilterMenu({
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
       >
-        <FilterIcon size={16} />
+        <FilterIcon size={ICON.md} />
       </button>
       <AnimatePresence>
         {open && (
@@ -67,7 +68,7 @@ export function NotesFilterMenu({
             initial={reduce ? { opacity: 0 } : { opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={reduce ? { opacity: 0 } : { opacity: 0, y: -4 }}
-            transition={{ duration: 0.12 }}
+            transition={{ duration: DUR_FAST }}
           >
             <div className="flex items-center justify-between gap-2">
               <div className="seg" role="group" aria-label="Filter mode">

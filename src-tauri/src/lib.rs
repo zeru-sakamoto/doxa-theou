@@ -1,6 +1,8 @@
 mod db;
 mod notes;
 
+use rusqlite::{Connection, OpenFlags};
+use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State};
@@ -52,6 +54,52 @@ fn search(
 ) -> Result<Vec<db::SearchHit>, String> {
     let conn = bible.0.lock().map_err(|e| e.to_string())?;
     db::search(&conn, &query, translation.as_deref()).map_err(|e| e.to_string())
+}
+
+/// Install a prebuilt `bible.sqlite` (the output of `scripts/import_bible.py`)
+/// as the active Bible DB: validate it, copy it into the app-local-data dir over
+/// the current one, and swap the live read-only connection. The frontend
+/// reloads afterwards to re-read books/translations.
+#[tauri::command]
+fn import_bible_db(
+    bible: State<'_, Bible>,
+    app: AppHandle,
+    source: String,
+) -> Result<(), String> {
+    let source = PathBuf::from(&source);
+    if !source.is_file() {
+        return Err(format!("File not found: {}", source.display()));
+    }
+    db::validate_source(&source)?;
+
+    let dest = db::db_path(&app)?;
+    // Picking the file that's already installed: nothing to copy.
+    if dest.exists()
+        && fs::canonicalize(&source).ok() == fs::canonicalize(&dest).ok()
+    {
+        return Ok(());
+    }
+
+    let mut guard = bible.0.lock().map_err(|e| e.to_string())?;
+    // Drop the live connection first so its file handle releases — Windows
+    // locks the open DB file and won't let us overwrite it otherwise.
+    *guard = Connection::open_in_memory().map_err(|e| e.to_string())?;
+
+    if let Some(parent) = dest.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    // Copy to a temp path then rename over the target, so a failed/partial copy
+    // never leaves a corrupt bible.sqlite in place.
+    let tmp = dest.with_extension("sqlite.importing");
+    fs::copy(&source, &tmp).map_err(|e| format!("Copy failed: {e}"))?;
+    if let Err(e) = fs::rename(&tmp, &dest) {
+        let _ = fs::remove_file(&tmp);
+        return Err(format!("Install failed: {e}"));
+    }
+
+    *guard = Connection::open_with_flags(&dest, OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 // --- Notes: Markdown-on-disk + SQLite index (see notes.rs) ---
@@ -145,6 +193,7 @@ pub fn run() {
             get_chapter,
             section_headings_for_chapter,
             search,
+            import_bible_db,
             load_notes,
             save_note,
             delete_note,

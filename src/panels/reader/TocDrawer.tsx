@@ -2,8 +2,9 @@
 // Slides in over the Reader body. Navigation home #2 (with Cmd-K being #1).
 import { useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { DRAWER_SPRING, DUR_FAST } from "../../motion";
 import { type Book, chapterCount } from "../../api";
-import { ChevronRightIcon } from "../../workspace/icons";
+import { ChevronRightIcon, ICON } from "../../workspace/icons";
 
 interface Props {
   open: boolean;
@@ -31,7 +32,7 @@ export function TocDrawer({
         initial: { x: "-100%" },
         animate: { x: 0 },
         exit: { x: "-100%" },
-        transition: { type: "spring" as const, stiffness: 520, damping: 44 },
+        transition: DRAWER_SPRING,
       };
 
   const groups: Array<[string, Book[]]> = [
@@ -48,7 +49,7 @@ export function TocDrawer({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.12 }}
+            transition={{ duration: DUR_FAST }}
             onClick={onClose}
           />
           <motion.aside
@@ -84,7 +85,7 @@ export function TocDrawer({
                                 (isOpen ? " rotate-90" : "")
                               }
                             >
-                              <ChevronRightIcon size={14} />
+                              <ChevronRightIcon size={ICON.sm} />
                             </span>
                             <span>{b.name}</span>
                           </button>

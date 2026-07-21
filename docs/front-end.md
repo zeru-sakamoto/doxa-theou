@@ -1,9 +1,10 @@
 # Front-End: App UI
 
-Documentation for the doxa-theou desktop UI: a **Logos × VSCode modular
+Documentation for the Doxa Theou desktop UI: a **Logos × VSCode modular
 workspace**, dockable panels the user can split, tab, and rearrange, framed by
-a custom window bar and a thin status bar. Backend/verse-data layer is documented
-separately in [`../DESIGN.md`](../DESIGN.md).
+a custom window bar and a thin status bar. The overall architecture (process
+model, IPC, data, security) is in [`architecture.md`](architecture.md); the
+backend/verse-data read path in [`../DESIGN.md`](../DESIGN.md).
 
 ---
 
@@ -37,14 +38,14 @@ the standing convention for this project (also noted in `CLAUDE.md`):
 
 ## 2. Tech stack
 
-| Concern          | Choice                                                                            |
-| ---------------- | --------------------------------------------------------------------------------- |
-| Framework        | React 19 + TypeScript (Vite)                                                      |
-| Docking / tiling | [`dockview-react`](https://dockview.dev) v7 (drag-to-dock, serialization)         |
-| Motion           | `motion` (Framer Motion), imported as `motion/react`                              |
-| Fonts            | `@fontsource/{newsreader,ibm-plex-sans,ibm-plex-mono}`                            |
-| Native bridge    | `@tauri-apps/api`: `invoke()` for commands, `getCurrentWindow()` for the titlebar |
-| Icons            | Hand-rolled inline SVG (`src/workspace/icons.tsx`), no icon-lib dependency        |
+| Concern          | Choice                                                                                                                   |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Framework        | React 19 + TypeScript (Vite)                                                                                             |
+| Docking / tiling | [`dockview-react`](https://dockview.dev) v7 (drag-to-dock, serialization)                                                |
+| Motion           | `motion` (Framer Motion), imported as `motion/react`                                                                     |
+| Fonts            | `@fontsource/{newsreader,ibm-plex-sans,ibm-plex-mono}`                                                                   |
+| Native bridge    | `@tauri-apps/api`: `invoke()` for commands, `getCurrentWindow()` for the titlebar                                        |
+| Icons            | Hand-rolled inline SVG (`src/workspace/icons.tsx`) on a shared `ICON` size scale (`xs/sm/md/lg`), no icon-lib dependency |
 
 State is a plain React context (`src/state/workspace.tsx`). No store library
 until it measurably needs one.
@@ -107,6 +108,7 @@ src/
   main.tsx                 entry: imports fonts + styles (dockview CSS first) + <App/>
   App.tsx                  <WorkspaceProvider><WorkspaceShell/></WorkspaceProvider>
   api.ts                   typed invoke() wrappers + canonical chapter counts
+  motion.ts                shared motion constants (durations/easing/drawer spring) mirroring tokens.css
   state/workspace.tsx      context store: theme, books, translations, active ref/translation
   styles/
     tokens.css             three-layer tokens + dockview bridge (design source of truth)
@@ -119,9 +121,12 @@ src/
     StatusBar.tsx          reference · translation · status · live clock
     CommandPalette.tsx     ⌘K go-to-reference; also exports parseQuery(), reused by the anchor composer
     dock.tsx               dockview wrapper, panel registry (Notes/Search/Settings lazy, Home eager), watermarkComponent, DockProvider/useDock, tab context menu (Duplicate tab, Close others, Close), joins an existing Reader/Notes group instead of re-splitting, snaps a two-group divider to the exact middle
-    LoadingScreen.tsx      shown while ws.ready is false — wordmark + quiet fade, no spinner
+    LoadingScreen.tsx      full-window pulsing wordmark overlay; fades out over the mounted dock (no swap flash)
     Menu.tsx               reusable dropdown menu
-    icons.tsx              inline SVG icon set
+    icons.tsx              inline SVG icon set + ICON size scale (BibleIcon marks the reader)
+    Toast.tsx              transient bottom-center toast (doxa:toast) — e.g. layout save/reset feedback
+    ErrorBoundary.tsx      top-level crash catcher → message + Reload (per-panel boundary lives in dock.tsx)
+    globalSearch.ts        header→Search-panel query hand-off (survives the lazy panel's first-mount race)
   panels/
     HomePanel.tsx          landing view: quick actions + recently-edited notes; also the dockview watermark
     ReaderPanel.tsx        scripture reader (one translation per panel), shows one chapter at a time
@@ -135,8 +140,8 @@ src/
     notes/NotesEditorToolbar.tsx  formatting toolbar, wraps by button-group when narrow
     notes/NotesAnchorBar.tsx   verse-anchor rows + composer (autocomplete, keyboard nav, chapter/verse validation)
     notes/notes.ts         sample-notes loader/parser, shared highlight palette, notePreview()
-    SearchPanel.tsx        Verses + Notes result groups
-    SettingsPanel.tsx      theme toggle, default translation, highlight palette, notes folder, notes-panel placement (Active/Left/Right)
+    SearchPanel.tsx        Scripture (FTS) + Notes (client-side) result groups
+    SettingsPanel.tsx      theme toggle, default translation, Bible-database import, highlight palette, notes folder, notes-panel placement (Active/Left/Right)
 ```
 
 ---
@@ -170,16 +175,21 @@ Thin and quiet: **active reference** (mono) · **active translation** ·
 
 A `dockview-react` surface. Panels can be dragged to split/tab/rearrange freely
 (1×1, 2×1, quad, …). The layout is serialized to `localStorage` on every change
-and restored on launch; **Layout ▸ Save/Reset** manage it explicitly. Before
-any of this mounts, `WorkspaceShell` gates on `ws.ready`, showing
-`LoadingScreen` until `list_books`/`list_translations` resolve.
+and **restored on launch** (`register` in `dock.tsx` calls `api.fromJSON`);
+restored Reader/Notes tabs reopen where they were, since each panel mirrors its
+live position/selection into its own params (see "Duplicate tab" below).
+**Layout ▸ Save/Reset** manage it explicitly. The dock mounts once `ws.ready`
+(after `list_books`/`list_translations` resolve); until then a full-window
+`LoadingScreen` overlay (pulsing wordmark) covers it and **fades out over** the
+mounted dock rather than being swapped for it, so there's no hand-off flash.
 
-There's no auto-opened panel on launch: a fresh install, a corrupt/cleared
-saved layout, or an explicit **Reset layout** all leave the dock with zero
-panels, which dockview's built-in watermark mechanism fills with `HomePanel`
-(passed as `watermarkComponent` in `dock.tsx`) — see §6. `HomePanel` is the
-default startup screen only — it isn't a panel type, so it can't be opened
-as a tab; the only way back to it mid-session is closing every open panel.
+When there's **no** saved layout — a fresh install, an explicit **Reset
+layout**, or a corrupt/unparseable blob (discarded on read) — the dock opens
+with zero panels, which dockview's built-in watermark mechanism fills with
+`HomePanel` (passed as `watermarkComponent` in `dock.tsx`) — see §6.
+`HomePanel` is the default empty-dock screen — it isn't a panel type, so it
+can't be opened as a tab; the only way back to it mid-session is closing every
+open panel.
 
 Each panel's group header shows dockview tabs (drag + close). Right-clicking a
 tab opens a native context menu via `DockviewReact`'s `getTabContextMenuItems`
@@ -249,14 +259,14 @@ Registered in `dock.tsx` under a `components` map (`id → component`).
 | ------------ | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Home**     | —                                      | Landing view: quick actions (start reading, open Notes/Search/Settings) + a recently-edited-notes list. The dockview watermark shown whenever the dock is empty — not an openable panel/tab. |
 | **Reader**   | `get_chapter`, `list_books`            | One translation, chosen at open time ("version-dedicated").                                                                                                                                  |
-| **Search**   | `search` (FTS5 / bm25)                 | Verses + Notes groups; Notes search is a placeholder.                                                                                                                                        |
+| **Search**   | `search` (FTS5 / bm25)                 | **Scripture** group (FTS5/bm25 via `search`) + **Notes** group (client-side substring match over the in-memory notes — title/tags/body); note hits open in the Notes panel.                  |
 | **Notes**    | `load_notes`/`save_note`/`delete_note` | Header, list, and a real Tiptap editor (toolbar, anchors, optional title); notes persist to disk via `NotesProvider` (`src/state/notes.tsx`), debounced per-note.                            |
-| **Settings** | `list_translations`                    | Theme toggle, default translation, shared highlight palette, notes folder picker, notes-panel placement (Active/Left/Right).                                                                 |
+| **Settings** | `list_translations`, `import_bible_db` | Theme toggle, default translation, Bible-database import (pick a prebuilt `bible.sqlite`), shared highlight palette, notes folder picker, notes-panel placement (Active/Left/Right).         |
 
-**Home** (`HomePanel.tsx`). The default startup screen — passed only as
+**Home** (`HomePanel.tsx`). The empty-dock screen — passed only as
 dockview's `watermarkComponent` (auto-shown whenever the dock has zero
-panels: launch, a cleared/corrupt saved layout, "Reset layout", or closing
-every panel mid-session). It's not registered in the `components` map, so
+panels: launch with no saved layout, a cleared/corrupt saved layout, "Reset
+layout", or closing every panel mid-session). It's not registered in the `components` map, so
 it can't be opened as a tab; the only way back to it mid-session is closing
 everything else. It reads `useDock()`/`useWorkspace()`/`useNotes()` directly
 rather than through props. Content: a row of quick-action buttons (start
@@ -395,6 +405,7 @@ window `CustomEvent`s:
 | ------------- | ------------------------------------- | ----------------------- |
 | `doxa:goto`   | `gotoReference` (palette/TOC/anchors) | the active Reader panel |
 | `doxa:search` | header global search submit           | the Search panel        |
+| `doxa:toast`  | `toast()` (e.g. layout save/reset)    | the `Toast` component   |
 
 The active Reader also pushes its reference/translation into the workspace store
 via `onDidActiveChange`, which is what the status bar reads.
@@ -453,7 +464,10 @@ against.
   `.toggleMaximize()`, `.close()`), all guarded so they no-op outside Tauri.
 
 An inline script in `index.html` applies the saved/system theme before first
-paint to avoid a flash.
+paint to avoid a flash, and `index.html` also renders a static "Doxa Theou"
+boot wordmark inside `#root` (position:fixed, themed via a `--boot-fg` the same
+script sets) so the window shows the wordmark rather than a blank while the
+bundle loads; React replaces it on mount, handing off to `LoadingScreen`.
 
 ---
 

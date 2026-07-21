@@ -32,12 +32,14 @@ import type { NotesParams } from "../panels/NotesPanel";
 import { ReaderPanel, type ReaderParams } from "../panels/ReaderPanel";
 import { useWorkspace } from "../state/workspace";
 import {
-  BookIcon,
+  BibleIcon,
   CloseIcon,
+  ICON,
   NotesIcon,
   SearchIcon,
   SettingsIcon,
 } from "./icons";
+import { toast } from "./Toast";
 
 // Reader is the most commonly-reopened panel, so it's imported eagerly above.
 // Notes/Search/Settings are opened on demand — lazy so their code (notably
@@ -204,8 +206,8 @@ const components = {
   ),
 };
 
-const TAB_ICONS: Record<string, typeof BookIcon> = {
-  reader: BookIcon,
+const TAB_ICONS: Record<string, typeof BibleIcon> = {
+  reader: BibleIcon,
   notes: NotesIcon,
   search: SearchIcon,
   settings: SettingsIcon,
@@ -247,7 +249,7 @@ function PanelTabContent({ api }: IDockviewPanelHeaderProps) {
     <div className="dv-default-tab">
       {Icon && (
         <span className="dv-tab-icon">
-          <Icon size={13} />
+          <Icon size={ICON.sm} />
         </span>
       )}
       <span className="dv-default-tab-content">{title}</span>
@@ -259,7 +261,7 @@ function PanelTabContent({ api }: IDockviewPanelHeaderProps) {
           api.close();
         }}
       >
-        <CloseIcon size={12} />
+        <CloseIcon size={ICON.xs} />
       </div>
     </div>
   );
@@ -342,10 +344,23 @@ export function DockProvider({ children }: { children: ReactNode }) {
 
   const register = useCallback((api: DockviewApi) => {
     apiRef.current = api;
-    // Every launch starts with zero panels — the watermark (HomePanel) fills
-    // that automatically — rather than restoring the previous session's open
-    // tabs, so Home is always the first thing you see. The layout is still
-    // autosaved below; only auto-*restoring* it on launch is skipped.
+    // Restore the previous session's layout ("Save layout" / the autosave
+    // below persist it). Restored Reader/Notes tabs reopen where they were,
+    // because each panel mirrors its live position/selection into its own
+    // params (see api.updateParameters in ReaderPanel/NotesPanel). A missing,
+    // unparseable, or dockview-incompatible blob is discarded so we fall back
+    // to the empty dock — which the watermark (HomePanel) fills — instead of
+    // throwing.
+    const saved = localStorage.getItem(LAYOUT_KEY);
+    if (saved) {
+      try {
+        api.fromJSON(JSON.parse(saved));
+      } catch (e) {
+        console.error("Discarding unreadable saved layout:", e);
+        localStorage.removeItem(LAYOUT_KEY);
+        api.clear();
+      }
+    }
     api.onDidLayoutChange(() =>
       localStorage.setItem(LAYOUT_KEY, JSON.stringify(api.toJSON())),
     );
@@ -478,7 +493,9 @@ export function DockProvider({ children }: { children: ReactNode }) {
 
   const saveLayout = useCallback(() => {
     const api = apiRef.current;
-    if (api) localStorage.setItem(LAYOUT_KEY, JSON.stringify(api.toJSON()));
+    if (!api) return;
+    localStorage.setItem(LAYOUT_KEY, JSON.stringify(api.toJSON()));
+    toast("Layout saved");
   }, []);
 
   const resetLayout = useCallback(() => {
@@ -486,6 +503,7 @@ export function DockProvider({ children }: { children: ReactNode }) {
     if (!api) return;
     localStorage.removeItem(LAYOUT_KEY);
     api.clear();
+    toast("Layout reset");
   }, []);
 
   const value = useMemo<DockCtx>(

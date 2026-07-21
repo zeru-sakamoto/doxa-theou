@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-doxa-theou is a Bible Study App, built as a desktop app with Tauri 2 (Rust backend) + React 19 + TypeScript (Vite frontend).
+doxa-theou (display name **Doxa Theou**; the repo/crate/bundle-identifier keep the hyphenated `doxa-theou` form) is a Bible Study App, built as a desktop app with Tauri 2 (Rust backend) + React 19 + TypeScript (Vite frontend).
 
 ## Commands
 

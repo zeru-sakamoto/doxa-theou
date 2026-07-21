@@ -1,18 +1,43 @@
 // Settings — theme, default translation (for new Readers), notes editor
 // preferences, and the anchor-highlight palette (drives note colors + the
 // editor's default highlight; see notes.ts / tokens.css).
+import { useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
+import { importBibleDb } from "../api";
 import { useWorkspace } from "../state/workspace";
-import { MoonIcon, SunIcon } from "../workspace/icons";
+import { ICON, MoonIcon, SunIcon } from "../workspace/icons";
 import { HIGHLIGHT_PALETTES, paletteById, type PaletteId } from "./notes/notes";
 
 export function SettingsPanel() {
   const ws = useWorkspace();
   const swatches = paletteById(ws.anchorPalette).swatches;
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
 
   async function chooseNotesFolder() {
     const dir = await open({ directory: true, multiple: false });
     if (typeof dir === "string") ws.setNotesFolder(dir);
+  }
+
+  // Pick a prebuilt bible.sqlite and install it as the active DB. Rust
+  // validates + swaps it; on success we reload so the whole app re-reads the
+  // new books/translations (the layout is restored from localStorage).
+  async function importDb() {
+    const file = await open({
+      multiple: false,
+      directory: false,
+      filters: [{ name: "SQLite database", extensions: ["sqlite", "db"] }],
+    });
+    if (typeof file !== "string") return;
+    setImporting(true);
+    setImportError(null);
+    try {
+      await importBibleDb(file);
+      window.location.reload();
+    } catch (e) {
+      setImportError(String(e));
+      setImporting(false);
+    }
   }
 
   // Switching palette resets the default highlight color to that palette's
@@ -36,13 +61,13 @@ export function SettingsPanel() {
                 className={"seg__btn" + (ws.theme === "light" ? " is-on" : "")}
                 onClick={() => ws.setTheme("light")}
               >
-                <SunIcon size={14} /> Light
+                <SunIcon size={ICON.sm} /> Light
               </button>
               <button
                 className={"seg__btn" + (ws.theme === "dark" ? " is-on" : "")}
                 onClick={() => ws.setTheme("dark")}
               >
-                <MoonIcon size={14} /> Dark
+                <MoonIcon size={ICON.sm} /> Dark
               </button>
             </div>
           </div>
@@ -73,6 +98,41 @@ export function SettingsPanel() {
               ))}
             </select>
           </div>
+        </section>
+
+        <section className="[&+&]:mt-6">
+          <h3 className="mb-2 text-(length:--text-xs) uppercase tracking-[0.06em] text-muted">
+            Bible database
+          </h3>
+          <div className="flex items-center justify-between gap-3 py-2">
+            <div className="flex flex-col min-w-0">
+              <span className="text-(length:--text-sm)">Import database</span>
+              <span className="panel__muted">
+                Replace the active Bible data with a{" "}
+                <span className="font-(family-name:--font-mono)">
+                  bible.sqlite
+                </span>{" "}
+                built by{" "}
+                <span className="font-(family-name:--font-mono)">
+                  scripts/import_bible.py
+                </span>
+                . The app reloads after a successful import.
+              </span>
+            </div>
+            <button
+              type="button"
+              disabled={importing}
+              className="shrink-0 inline-flex items-center h-7 px-3 rounded-(--radius-sm) bg-accent-tint text-ink text-(length:--text-sm) hover:bg-accent-tint-strong disabled:opacity-50 disabled:cursor-default transition-colors duration-(--dur-fast) ease-(--ease-standard)"
+              onClick={importDb}
+            >
+              {importing ? "Importing…" : "Import database…"}
+            </button>
+          </div>
+          {importError && (
+            <p className="mt-1 text-danger text-(length:--text-xs)">
+              {importError}
+            </p>
+          )}
         </section>
 
         <section className="[&+&]:mt-6">

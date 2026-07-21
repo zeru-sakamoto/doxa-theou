@@ -22,6 +22,13 @@ function Svg({
   );
 }
 
+// Icon size scale (px). A small named set instead of ad-hoc per-call sizes, so
+// icons sit on four consistent tiers. JS (not a CSS var) because the SVG
+// width/height `size` prop needs a number. xs: inline actions (tag/anchor
+// close) · sm: chrome + chevrons · md: base controls (toolbar, reader nav,
+// menus) · lg: prominent header controls.
+export const ICON = { xs: 12, sm: 14, md: 16, lg: 19 } as const;
+
 export const MenuIcon = (p: SVGProps<SVGSVGElement> & { size?: number }) => (
   <Svg {...p}>
     <path d="M4 6h16" />
@@ -62,10 +69,15 @@ export const SettingsIcon = (
   </Svg>
 );
 
-export const BookIcon = (p: SVGProps<SVGSVGElement> & { size?: number }) => (
+// Bible: a closed book with a cross on the cover, so the Reader/Bible reads as
+// scripture rather than a generic book. (Replaces the old plain BookIcon; every
+// use of it was the Bible context.)
+export const BibleIcon = (p: SVGProps<SVGSVGElement> & { size?: number }) => (
   <Svg {...p}>
     <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
     <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+    <path d="M13 6.5v5" />
+    <path d="M10.75 8.5h4.5" />
   </Svg>
 );
 

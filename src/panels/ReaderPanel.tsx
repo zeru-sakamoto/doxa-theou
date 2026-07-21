@@ -21,6 +21,7 @@ import {
   BulletListIcon,
   ChevronDownIcon,
   ChevronUpIcon,
+  ICON,
   MenuIcon,
   ParagraphIcon,
 } from "../workspace/icons";
@@ -337,7 +338,7 @@ export function ReaderPanel({
           aria-expanded={tocOpen}
           onClick={() => setTocOpen((o) => !o)}
         >
-          <MenuIcon size={16} />
+          <MenuIcon size={ICON.md} />
         </button>
         <span className="font-medium text-(length:--text-sm)">
           {ws.bookName(currentPos.bookId)} {currentPos.chapter}
@@ -356,9 +357,9 @@ export function ReaderPanel({
           }
         >
           {flowMode === "rows" ? (
-            <BulletListIcon size={15} />
+            <BulletListIcon size={ICON.md} />
           ) : (
-            <ParagraphIcon size={15} />
+            <ParagraphIcon size={ICON.md} />
           )}
         </button>
         <span className="font-(family-name:--font-mono) text-(length:--text-xs) text-muted tracking-[0.03em]">
@@ -366,7 +367,9 @@ export function ReaderPanel({
         </span>
       </div>
 
-      <div ref={containerRef} className="flex-1 overflow-auto">
+      {/* pr-12 keeps verse text clear of the floating chapter up/down control
+          (.reader__nav, pinned to the right edge) instead of running under it. */}
+      <div ref={containerRef} className="flex-1 overflow-auto pr-12">
         {error && <p className="panel__error">{error}</p>}
         {!error && loading && <p className="panel__muted">Loading…</p>}
         {!error && !loading && chapter && chapter.verses.length === 0 && (
@@ -395,7 +398,7 @@ export function ReaderPanel({
           disabled={disablePrev}
           onClick={() => stepChapter(-1)}
         >
-          <ChevronUpIcon size={16} />
+          <ChevronUpIcon size={ICON.md} />
         </button>
         <button
           className="iconbtn"
@@ -404,7 +407,7 @@ export function ReaderPanel({
           disabled={disableNext}
           onClick={() => stepChapter(1)}
         >
-          <ChevronDownIcon size={16} />
+          <ChevronDownIcon size={ICON.md} />
         </button>
       </div>
 

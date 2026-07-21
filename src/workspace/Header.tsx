@@ -5,11 +5,13 @@ import { useEffect, useState, type FormEvent } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useWorkspace } from "../state/workspace";
 import { useDock } from "./dock";
+import { setPendingSearch } from "./globalSearch";
 import { Menu, type MenuAction } from "./Menu";
 import {
-  BookIcon,
+  BibleIcon,
   ChevronDownIcon,
   CloseIcon,
+  ICON,
   LayoutIcon,
   MaximizeIcon,
   MinimizeIcon,
@@ -62,8 +64,10 @@ export function Header() {
     e.preventDefault();
     const q = query.trim();
     if (!q) return;
+    // Stash the query so a first-time (lazy) Search panel picks it up on mount,
+    // and also fire the event for when the panel is already open.
+    setPendingSearch(q);
     dock.openSingleton("search");
-    // Let the Search panel mount + attach its listener before we drive it.
     setTimeout(
       () => window.dispatchEvent(new CustomEvent("doxa:search", { detail: q })),
       0,
@@ -83,7 +87,7 @@ export function Header() {
   ];
 
   const hbtn =
-    "inline-flex items-center gap-1.5 h-7 px-2 rounded-(--radius-sm) bg-transparent text-ink text-(length:--text-sm) whitespace-nowrap transition-colors duration-(--dur-fast) ease-(--ease-standard) hover:bg-accent-tint active:bg-accent-tint-strong";
+    "btn-ghost gap-1.5 h-7 px-2 text-(length:--text-sm) whitespace-nowrap";
   const wbtn =
     "inline-flex items-center justify-center w-11 border-0 bg-transparent text-muted transition-colors duration-(--dur-fast) ease-(--ease-standard) hover:bg-accent-tint hover:text-ink";
 
@@ -109,7 +113,7 @@ export function Header() {
           className="absolute left-2 flex text-muted pointer-events-none"
           aria-hidden="true"
         >
-          <SearchIcon size={15} />
+          <SearchIcon size={ICON.md} />
         </span>
         <input
           className="input w-full pl-[28px]!"
@@ -126,7 +130,7 @@ export function Header() {
         align="left"
         items={layoutItems}
       >
-        <LayoutIcon size={19} strokeWidth={2.25} />
+        <LayoutIcon size={ICON.lg} strokeWidth={2.25} />
       </Menu>
 
       <div className="flex-1 self-stretch" data-tauri-drag-region />
@@ -138,18 +142,18 @@ export function Header() {
           align="right"
           items={readerItems}
         >
-          <BookIcon size={19} strokeWidth={2.25} />
-          <ChevronDownIcon size={14} strokeWidth={2.25} />
+          <BibleIcon size={ICON.lg} strokeWidth={2.25} />
+          <ChevronDownIcon size={ICON.sm} strokeWidth={2.25} />
         </Menu>
         <button className={hbtn} onClick={() => dock.openNotes()} title="Notes">
-          <NotesIcon size={19} strokeWidth={2.25} />
+          <NotesIcon size={ICON.lg} strokeWidth={2.25} />
         </button>
         <button
           className={hbtn}
           onClick={() => dock.openSingleton("settings")}
           title="Settings"
         >
-          <SettingsIcon size={19} strokeWidth={2.25} />
+          <SettingsIcon size={ICON.lg} strokeWidth={2.25} />
         </button>
 
         <div className="flex items-stretch h-full ml-1">
@@ -159,7 +163,7 @@ export function Header() {
             title="Minimize"
             aria-label="Minimize"
           >
-            <MinimizeIcon size={15} />
+            <MinimizeIcon size={ICON.md} />
           </button>
           <button
             className={wbtn}
@@ -167,7 +171,11 @@ export function Header() {
             title={maximized ? "Restore" : "Maximize"}
             aria-label={maximized ? "Restore" : "Maximize"}
           >
-            {maximized ? <RestoreIcon size={14} /> : <MaximizeIcon size={14} />}
+            {maximized ? (
+              <RestoreIcon size={ICON.sm} />
+            ) : (
+              <MaximizeIcon size={ICON.sm} />
+            )}
           </button>
           <button
             className="inline-flex items-center justify-center w-11 border-0 bg-transparent text-muted transition-colors duration-(--dur-fast) ease-(--ease-standard) hover:bg-danger hover:text-white"
@@ -175,7 +183,7 @@ export function Header() {
             title="Close"
             aria-label="Close"
           >
-            <CloseIcon size={15} />
+            <CloseIcon size={ICON.md} />
           </button>
         </div>
       </div>

@@ -15,6 +15,21 @@
     @apply outline-none border-accent shadow-[0_0_0_2px_var(--accent-tint-strong)];
   }
 
+  /* Ghost text-button: transparent until hover, accent-tint on hover / stronger
+     on press. Shared by the header controls and Home's quick actions; call
+     sites add their own sizing/gap/padding. (The Settings "Choose folder"
+     button is a pre-tinted "soft" variant and the command-palette rows are
+     list items — deliberately not this.) */
+  .btn-ghost {
+    @apply inline-flex items-center rounded-[var(--radius-sm)] bg-transparent text-ink transition-colors duration-[var(--dur-fast)] ease-[var(--ease-standard)];
+  }
+  .btn-ghost:hover {
+    @apply bg-accent-tint;
+  }
+  .btn-ghost:active {
+    @apply bg-accent-tint-strong;
+  }
+
   .iconbtn {
     @apply inline-flex items-center justify-center w-[26px] h-[26px] border-0 rounded-[var(--radius-sm)] bg-transparent text-muted transition-colors duration-[var(--dur-fast)] ease-[var(--ease-standard)];
   }

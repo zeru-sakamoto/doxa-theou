@@ -80,10 +80,22 @@ function initialLastReaderPosition(): LastReaderPosition | null {
   const raw = localStorage.getItem(LAST_READER_POSITION_KEY);
   if (!raw) return null;
   try {
-    return JSON.parse(raw);
+    const p = JSON.parse(raw);
+    // Validate the shape — a partial/corrupt blob (old version, hand-edited)
+    // would otherwise produce a broken "Continue reading" card and a
+    // gotoReference to an undefined book.
+    if (
+      p &&
+      typeof p.bookId === "number" &&
+      typeof p.chapter === "number" &&
+      typeof p.translation === "string"
+    ) {
+      return p as LastReaderPosition;
+    }
   } catch {
-    return null;
+    /* fall through to null */
   }
+  return null;
 }
 
 function initialTheme(): Theme {

@@ -6,7 +6,7 @@
 
 use rusqlite::{Connection, OpenFlags};
 use serde::Serialize;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
 
 #[derive(Serialize)]
@@ -58,6 +58,26 @@ pub struct SearchHit {
 pub fn db_path(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
     Ok(dir.join("bible.sqlite"))
+}
+
+/// Check `path` is a usable Bible DB (the shape `scripts/import_bible.py`
+/// produces) before we install it over the live one — so a wrong file is
+/// rejected up front instead of bricking the app on next launch.
+pub fn validate_source(path: &Path) -> Result<(), String> {
+    let conn = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .map_err(|e| format!("Can't open that file as a database: {e}"))?;
+    let count = |sql: &str, what: &str| -> Result<i64, String> {
+        conn.query_row(sql, [], |r| r.get::<_, i64>(0))
+            .map_err(|_| format!("Not a Doxa Theou Bible database (missing {what})."))
+    };
+    let books = count("SELECT COUNT(*) FROM books", "books")?;
+    let translations = count("SELECT COUNT(*) FROM translations", "translations")?;
+    let verses = count("SELECT COUNT(*) FROM verse_texts", "verse text")?;
+    count("SELECT COUNT(*) FROM verse_fts", "the search index")?;
+    if books == 0 || translations == 0 || verses == 0 {
+        return Err("That database is empty (no books, translations, or verses).".into());
+    }
+    Ok(())
 }
 
 /// Open the DB read-only, or return a message telling the user how to create it.
@@ -152,14 +172,31 @@ pub fn get_section_headings(
     .collect()
 }
 
+/// Arbitrary user text -> safe FTS5 MATCH string: each whitespace-separated
+/// token becomes a quoted term (embedded `"` doubled), so any FTS operator or
+/// quote in the input (`"`, `*`, `:`, `^`, `-`, `NEAR`, `(`) is matched
+/// literally instead of parsed as query syntax and raising an error. Empty
+/// input (or all-whitespace) yields an empty string.
+fn fts_query(raw: &str) -> String {
+    raw.split_whitespace()
+        .map(|t| format!("\"{}\"", t.replace('"', "\"\"")))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// FTS5 search ordered by bm25 (lower = better). `translation` None searches all.
-// Raw MATCH passthrough. A stray `"` in the query is an FTS syntax error
-// surfaced to the caller; quote/sanitize the input if that becomes a problem.
+// The query is sanitized via `fts_query` so raw punctuation never reaches the
+// FTS parser as syntax; a blank/whitespace-only query returns no hits.
 pub fn search(
     conn: &Connection,
     query: &str,
     translation: Option<&str>,
 ) -> rusqlite::Result<Vec<SearchHit>> {
+    let match_query = fts_query(query);
+    if match_query.is_empty() {
+        return Ok(Vec::new());
+    }
+
     let mut sql = String::from(
         "SELECT f.verse_ref_id, r.book_id, r.chapter, r.verse, t.code, f.text, bm25(verse_fts) \
          FROM verse_fts f \
@@ -184,15 +221,28 @@ pub fn search(
         })
     };
     let mut stmt = conn.prepare(&sql)?;
+    let q = match_query.as_str();
     match translation {
-        Some(code) => stmt.query_map((query, code), map)?.collect(),
-        None => stmt.query_map((query,), map)?.collect(),
+        Some(code) => stmt.query_map((q, code), map)?.collect(),
+        None => stmt.query_map((q,), map)?.collect(),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fts_query_quotes_each_token_and_escapes() {
+        assert_eq!(fts_query("the shepherd"), "\"the\" \"shepherd\"");
+        // A stray quote is doubled inside the wrapping quotes, not passed through
+        // as syntax (this exact input raised an FTS parse error before).
+        assert_eq!(fts_query("\"love"), "\"\"\"love\"");
+        // Bare FTS operators become literal tokens, never query syntax.
+        assert_eq!(fts_query("C++ (grace)"), "\"C++\" \"(grace)\"");
+        assert_eq!(fts_query("   "), "");
+        assert_eq!(fts_query(""), "");
+    }
 
     // Runs against the imported ../bible.sqlite; no-ops if it isn't there
     // (it's gitignored). Run `python scripts/import_bible.py` to populate.
@@ -214,5 +264,12 @@ mod tests {
         let hits = search(&c, "shepherd", Some("ESV")).unwrap();
         assert!(!hits.is_empty());
         assert!(hits.windows(2).all(|w| w[0].score <= w[1].score)); // bm25 ascending
+
+        // Special characters that used to raise an FTS syntax error now return
+        // Ok (no hits is fine) instead of surfacing an error to the caller.
+        assert!(search(&c, "\"love", Some("ESV")).is_ok());
+        assert!(search(&c, "(grace)", None).is_ok());
+        // A multi-word query still matches (both tokens present in a verse).
+        assert!(!search(&c, "good shepherd", Some("ESV")).unwrap().is_empty());
     }
 }

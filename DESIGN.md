@@ -1,9 +1,10 @@
 # DESIGN — Backend / Verse Data Layer
 
 How verse text gets from the local source Bible DB into the app. Scope here is
-the **read path for scripture** (books, chapters, search). Notes, cross-references,
-highlighting, and semantic search are on the roadmap and noted where they attach,
-but not built yet.
+the **read path for scripture** (books, chapters, search). Notes and verse
+highlighting are now built — their storage/index model is documented in
+[`docs/architecture.md`](docs/architecture.md); cross-references and semantic
+search remain on the roadmap and are noted below where they attach.
 
 ## Overview
 
@@ -102,9 +103,11 @@ Adding a translation to the source DB is picked up automatically on the next run
 
 Rust opens `app.path().app_local_data_dir()/bible.sqlite` (e.g.
 `%LOCALAPPDATA%/com.zeru-sakamoto.doxa-theou/bible.sqlite` on Windows). The import
-script writes to the repo root; **copy that file into the app-local-data dir once**.
-If it's missing, the Rust `db::open` error names the exact expected path and the
-import command.
+script writes to the repo root; install it into the app-local-data dir either
+**in-app** (Settings ▸ Bible database ▸ Import database… → pick the file, which
+validates + swaps it and reloads — see `docs/architecture.md`) or by copying it
+there once by hand. If it's missing, the Rust `db::open` error names the exact
+expected path and the import command.
 
 <!-- Manual one-time copy. Bundle bible.sqlite as a Tauri `resources`
      entry and copy on first run only if this ever ships to other machines. -->
@@ -130,7 +133,11 @@ invocable by default in Tauri 2; rusqlite is in-process, not a plugin.
 
 `get_chapter` is a plain indexed lookup. `search` runs FTS5 `MATCH` ordered by
 `bm25()` (lower = better), optionally filtered to one translation, capped at 50 hits.
-Query text is passed to `MATCH` as-is for now.
+Query text is **sanitized** first (`db::fts_query`): each whitespace token is
+wrapped as a quoted FTS term (embedded quotes doubled), so punctuation/operators
+(`"`, `*`, `:`, `-`, `(`) are matched literally instead of parsed as query syntax
+— which previously raised an error surfaced to the user. A blank query returns
+no hits.
 
 Roadmap (not built): fuzzy/edit-distance tolerance, and offline semantic similarity
 (`all-MiniLM-L6-v2` via `fastembed-rs`, vectors cached in SQLite), blended with the

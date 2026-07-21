@@ -20,6 +20,7 @@ import {
   OrderedListIcon,
   BlockquoteIcon,
   ChevronDownIcon,
+  ICON,
 } from "../../workspace/icons";
 
 const HEADING_LABEL: Record<number, string> = {
@@ -130,7 +131,7 @@ export function NotesEditorToolbar({
           items={headingItems}
         >
           {HEADING_LABEL[state.headingLevel]}
-          <ChevronDownIcon size={14} />
+          <ChevronDownIcon size={ICON.sm} />
         </Menu>
       </div>
 
@@ -140,21 +141,26 @@ export function NotesEditorToolbar({
           state.bold,
           "Bold (Mod-B)",
           () => editor.chain().focus().toggleBold().run(),
-          <BoldIcon size={16} />,
+          <BoldIcon size={ICON.md} />,
         )}
         {btn(
           state.italic,
           "Italic (Mod-I)",
           () => editor.chain().focus().toggleItalic().run(),
-          <ItalicIcon size={16} />,
+          <ItalicIcon size={ICON.md} />,
         )}
         {btn(
           state.underline,
           "Underline (Mod-U)",
           () => editor.chain().focus().toggleUnderline().run(),
-          <UnderlineIcon size={16} />,
+          <UnderlineIcon size={ICON.md} />,
         )}
-        {btn(state.link, "Link (Mod-K)", toggleLink, <LinkIcon size={16} />)}
+        {btn(
+          state.link,
+          "Link (Mod-K)",
+          toggleLink,
+          <LinkIcon size={ICON.md} />,
+        )}
       </div>
 
       <div className="flex items-center gap-x-0.5 shrink-0">
@@ -168,31 +174,31 @@ export function NotesEditorToolbar({
               .focus()
               .toggleHighlight({ color: highlightColor })
               .run(),
-          <HighlighterIcon size={16} />,
+          <HighlighterIcon size={ICON.md} />,
         )}
         {btn(
           state.strike,
           "Strikethrough (Mod-Shift-S)",
           () => editor.chain().focus().toggleStrike().run(),
-          <StrikeIcon size={16} />,
+          <StrikeIcon size={ICON.md} />,
         )}
         {btn(
           state.bulletList,
           "Bullet list (Mod-Shift-8)",
           () => editor.chain().focus().toggleBulletList().run(),
-          <BulletListIcon size={16} />,
+          <BulletListIcon size={ICON.md} />,
         )}
         {btn(
           state.orderedList,
           "Numbered list (Mod-Shift-7)",
           () => editor.chain().focus().toggleOrderedList().run(),
-          <OrderedListIcon size={16} />,
+          <OrderedListIcon size={ICON.md} />,
         )}
         {btn(
           state.blockquote,
           "Quote (Mod-Shift-B)",
           () => editor.chain().focus().toggleBlockquote().run(),
-          <BlockquoteIcon size={16} />,
+          <BlockquoteIcon size={ICON.md} />,
         )}
       </div>
 
@@ -202,37 +208,37 @@ export function NotesEditorToolbar({
           state.subscript,
           "Subscript (Mod-,)",
           () => editor.chain().focus().toggleSubscript().run(),
-          <SubscriptIcon size={16} />,
+          <SubscriptIcon size={ICON.md} />,
         )}
         {btn(
           state.superscript,
           "Superscript (Mod-.)",
           () => editor.chain().focus().toggleSuperscript().run(),
-          <SuperscriptIcon size={16} />,
+          <SuperscriptIcon size={ICON.md} />,
         )}
         {btn(
           state.taskList,
           "Task list (Mod-Shift-9)",
           () => editor.chain().focus().toggleTaskList().run(),
-          <TaskListIcon size={16} />,
+          <TaskListIcon size={ICON.md} />,
         )}
         {btn(
           state.code,
           "Inline code (Mod-E)",
           () => editor.chain().focus().toggleCode().run(),
-          <CodeIcon size={16} />,
+          <CodeIcon size={ICON.md} />,
         )}
         {btn(
           state.codeBlock,
           "Code block (Mod-Alt-C)",
           () => editor.chain().focus().toggleCodeBlock().run(),
-          <CodeBlockIcon size={16} />,
+          <CodeBlockIcon size={ICON.md} />,
         )}
         {btn(
           false,
           "Horizontal rule",
           () => editor.chain().focus().setHorizontalRule().run(),
-          <HorizontalRuleIcon size={16} />,
+          <HorizontalRuleIcon size={ICON.md} />,
         )}
       </div>
 

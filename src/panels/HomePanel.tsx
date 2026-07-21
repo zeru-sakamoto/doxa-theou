@@ -4,12 +4,14 @@
 // reuse the existing dock openers directly — no new opener functions needed.
 import { useMemo } from "react";
 import { motion, useReducedMotion } from "motion/react";
+import { DUR_BASE, EASE_OUT } from "../motion";
 import { useNotes } from "../state/notes";
 import { useWorkspace } from "../state/workspace";
 import { useDock } from "../workspace/dock";
 import {
-  BookIcon,
+  BibleIcon,
   ChevronRightIcon,
+  ICON,
   NotesIcon,
   SearchIcon,
   SettingsIcon,
@@ -23,7 +25,7 @@ const eyebrow =
   "text-(length:--text-xs) uppercase tracking-[0.06em] text-muted";
 
 const quickAction =
-  "flex items-center gap-2.5 px-2 py-1.5 rounded-(--radius-sm) bg-transparent text-ink text-(length:--text-sm) text-left transition-colors duration-(--dur-fast) ease-(--ease-standard) hover:bg-accent-tint active:bg-accent-tint-strong";
+  "btn-ghost gap-2.5 px-2 py-1.5 text-(length:--text-sm) text-left";
 
 const noteRow =
   "flex items-center justify-between gap-3 px-2 py-1.5 rounded-(--radius-sm) bg-transparent text-left transition-colors duration-(--dur-fast) ease-(--ease-standard) hover:bg-accent-tint";
@@ -39,7 +41,7 @@ export function HomePanel() {
     animate: { opacity: 1, y: 0 },
     transition: reduce
       ? { duration: 0 }
-      : { duration: 0.18, ease: [0.16, 1, 0.3, 1] as const, delay },
+      : { duration: DUR_BASE, ease: EASE_OUT, delay },
   });
 
   const recentNotes = [...notes]
@@ -109,7 +111,7 @@ export function HomePanel() {
                   )}
                 </div>
                 <ChevronRightIcon
-                  size={18}
+                  size={ICON.lg}
                   strokeWidth={2}
                   className="text-muted shrink-0"
                 />
@@ -152,28 +154,28 @@ export function HomePanel() {
                   className={quickAction}
                   onClick={() => dock.openReader(ws.defaultTranslation)}
                 >
-                  <BookIcon size={16} strokeWidth={2} />
+                  <BibleIcon size={ICON.md} strokeWidth={2} />
                   Start reading ({ws.defaultTranslation})
                 </button>
                 <button
                   className={quickAction}
                   onClick={() => dock.openNotes()}
                 >
-                  <NotesIcon size={16} strokeWidth={2} />
+                  <NotesIcon size={ICON.md} strokeWidth={2} />
                   Open Notes
                 </button>
                 <button
                   className={quickAction}
                   onClick={() => dock.openSingleton("search")}
                 >
-                  <SearchIcon size={16} strokeWidth={2} />
+                  <SearchIcon size={ICON.md} strokeWidth={2} />
                   Search
                 </button>
                 <button
                   className={quickAction}
                   onClick={() => dock.openSingleton("settings")}
                 >
-                  <SettingsIcon size={16} strokeWidth={2} />
+                  <SettingsIcon size={ICON.md} strokeWidth={2} />
                   Settings
                 </button>
               </div>
