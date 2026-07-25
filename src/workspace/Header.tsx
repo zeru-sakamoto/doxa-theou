@@ -3,7 +3,9 @@
 // Settings · window controls (min / max-restore / close).
 import { useEffect, useState, type FormEvent } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { findSectionHeading } from "../api";
 import { useWorkspace } from "../state/workspace";
+import { exactReference } from "./CommandPalette";
 import { useDock } from "./dock";
 import { setPendingSearch } from "./globalSearch";
 import { Menu, type MenuAction } from "./Menu";
@@ -60,10 +62,33 @@ export function Header() {
     }
   }
 
-  function submitSearch(e: FormEvent<HTMLFormElement>) {
+  async function submitSearch(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const q = query.trim();
     if (!q) return;
+
+    // Typed accurately as "Book Chapter[:Verse]" or a passage heading title
+    // (e.g. "Proverbs 25:1", "The Prodigal Son") — jump straight there
+    // instead of opening a Search tab.
+    const ref = exactReference(q, ws.books);
+    if (ref) {
+      dock.gotoReference(ref.bookId, ref.chapter, ref.verse);
+      ws.setActiveReference(ref);
+      return;
+    }
+    const heading = await findSectionHeading(q, ws.defaultTranslation).catch(
+      () => null,
+    );
+    if (heading) {
+      dock.gotoReference(heading.book_id, heading.chapter, heading.verse_start);
+      ws.setActiveReference({
+        bookId: heading.book_id,
+        chapter: heading.chapter,
+        verse: heading.verse_start,
+      });
+      return;
+    }
+
     // Stash the query so a first-time (lazy) Search panel picks it up on mount,
     // and also fire the event for when the panel is already open.
     setPendingSearch(q);

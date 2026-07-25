@@ -45,6 +45,13 @@ pub struct SectionHeading {
 }
 
 #[derive(Serialize)]
+pub struct HeadingMatch {
+    pub book_id: i64,
+    pub chapter: i64,
+    pub verse_start: i64,
+}
+
+#[derive(Serialize)]
 pub struct SearchHit {
     pub verse_ref_id: i64,
     pub book_id: i64,
@@ -170,6 +177,32 @@ pub fn get_section_headings(
         })
     })?
     .collect()
+}
+
+/// Exact (case-insensitive) title match against every section heading for
+/// `translation` — lets the global search box jump straight to a passage
+/// instead of running a full-text search.
+pub fn find_section_heading(
+    conn: &Connection,
+    title: &str,
+    translation: &str,
+) -> rusqlite::Result<Option<HeadingMatch>> {
+    conn.prepare(
+        "SELECT sh.book_id, sh.chapter, sh.verse_start \
+         FROM section_headings sh \
+         JOIN translations t ON t.id = sh.translation_id \
+         WHERE t.code = ?1 AND sh.heading = ?2 COLLATE NOCASE \
+         LIMIT 1",
+    )?
+    .query_map((translation, title), |r| {
+        Ok(HeadingMatch {
+            book_id: r.get(0)?,
+            chapter: r.get(1)?,
+            verse_start: r.get(2)?,
+        })
+    })?
+    .next()
+    .transpose()
 }
 
 /// Arbitrary user text -> safe FTS5 MATCH string: each whitespace-separated

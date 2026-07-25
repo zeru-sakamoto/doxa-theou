@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { DUR_FAST, EASE_OUT } from "../motion";
-import type { Book } from "../api";
+import { chapterCount, type Book } from "../api";
 import { useWorkspace } from "../state/workspace";
 import { useDock } from "./dock";
 
@@ -39,6 +39,29 @@ export function parseQuery(raw: string, books: Book[]) {
         .map((x) => x.b)
     : [];
   return { candidates, chapter, verse };
+}
+
+// Strict counterpart to parseQuery above: only matches "Book Chapter[:Verse]"
+// typed accurately — book name/abbr exact (no fuzzy/prefix match) and chapter
+// in range — so callers can skip straight to navigation instead of opening
+// search with fuzzy suggestions.
+export function exactReference(
+  raw: string,
+  books: Book[],
+): { bookId: number; chapter: number; verse?: number } | null {
+  const s = raw.trim();
+  const num = s.match(/(\d+)(?::(\d+))?\s*$/);
+  if (!num || !num.index) return null;
+  const qn = norm(s.slice(0, num.index));
+  const book = books.find((b) => norm(b.name) === qn || norm(b.abbr) === qn);
+  if (!book) return null;
+  const chapter = parseInt(num[1], 10);
+  if (chapter < 1 || chapter > chapterCount(book.id)) return null;
+  return {
+    bookId: book.id,
+    chapter,
+    verse: num[2] ? parseInt(num[2], 10) : undefined,
+  };
 }
 
 export function CommandPalette() {

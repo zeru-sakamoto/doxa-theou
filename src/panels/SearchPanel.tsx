@@ -3,9 +3,14 @@
 // (title/tags/body), same as the Notes panel's own list filter. Driven by the
 // header's global search field (doxa:search) or its own input.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { search as apiSearch, type SearchHit } from "../api";
+import {
+  findSectionHeading,
+  search as apiSearch,
+  type SearchHit,
+} from "../api";
 import { useNotes } from "../state/notes";
 import { useWorkspace } from "../state/workspace";
+import { exactReference } from "../workspace/CommandPalette";
 import { useDock } from "../workspace/dock";
 import { takePendingSearch } from "../workspace/globalSearch";
 import { notePreview } from "./notes/notes";
@@ -26,6 +31,30 @@ export function SearchPanel() {
     const term = q.trim();
     setSearched(term);
     if (!term) {
+      setHits([]);
+      setRan(false);
+      return;
+    }
+    // Typed accurately as "Book Chapter[:Verse]" or a passage heading title
+    // — jump straight there instead of full-text searching.
+    const ref = exactReference(term, ws.books);
+    if (ref) {
+      dock.gotoReference(ref.bookId, ref.chapter, ref.verse);
+      ws.setActiveReference(ref);
+      setHits([]);
+      setRan(false);
+      return;
+    }
+    const heading = await findSectionHeading(term, ws.defaultTranslation).catch(
+      () => null,
+    );
+    if (heading) {
+      dock.gotoReference(heading.book_id, heading.chapter, heading.verse_start);
+      ws.setActiveReference({
+        bookId: heading.book_id,
+        chapter: heading.chapter,
+        verse: heading.verse_start,
+      });
       setHits([]);
       setRan(false);
       return;

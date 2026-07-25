@@ -35,6 +35,12 @@ export interface SectionHeading {
   heading: string;
 }
 
+export interface HeadingMatch {
+  book_id: number;
+  chapter: number;
+  verse_start: number;
+}
+
 export interface SearchHit {
   verse_ref_id: number;
   book_id: number;
@@ -72,6 +78,11 @@ export const listTranslations = () =>
   invoke<Translation[]>("list_translations");
 export const search = (query: string, translation?: string) =>
   invoke<SearchHit[]>("search", { query, translation });
+
+// Exact (case-insensitive) passage-heading title lookup, e.g. "The Prodigal
+// Son" — used by global search to jump straight to the passage.
+export const findSectionHeading = (title: string, translation: string) =>
+  invoke<HeadingMatch | null>("find_section_heading", { title, translation });
 
 // Install a prebuilt bible.sqlite (from scripts/import_bible.py) as the active
 // Bible DB. Validated + atomically swapped in Rust; caller should reload after.
