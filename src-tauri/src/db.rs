@@ -52,6 +52,14 @@ pub struct HeadingMatch {
 }
 
 #[derive(Serialize)]
+pub struct HeadingSuggestion {
+    pub book_id: i64,
+    pub chapter: i64,
+    pub verse_start: i64,
+    pub heading: String,
+}
+
+#[derive(Serialize)]
 pub struct SearchHit {
     pub verse_ref_id: i64,
     pub book_id: i64,
@@ -205,6 +213,31 @@ pub fn find_section_heading(
     .transpose()
 }
 
+/// Every section heading for `translation`, in reading order — used to build
+/// the search bars' inline (ghost-text) suggestions client-side, so there's
+/// only one bulk fetch instead of a query per keystroke.
+pub fn list_section_headings(
+    conn: &Connection,
+    translation: &str,
+) -> rusqlite::Result<Vec<HeadingSuggestion>> {
+    conn.prepare(
+        "SELECT sh.book_id, sh.chapter, sh.verse_start, sh.heading \
+         FROM section_headings sh \
+         JOIN translations t ON t.id = sh.translation_id \
+         WHERE t.code = ?1 \
+         ORDER BY sh.book_id, sh.chapter, sh.verse_start, sh.id",
+    )?
+    .query_map((translation,), |r| {
+        Ok(HeadingSuggestion {
+            book_id: r.get(0)?,
+            chapter: r.get(1)?,
+            verse_start: r.get(2)?,
+            heading: r.get(3)?,
+        })
+    })?
+    .collect()
+}
+
 /// Arbitrary user text -> safe FTS5 MATCH string: each whitespace-separated
 /// token becomes a quoted term (embedded `"` doubled), so any FTS operator or
 /// quote in the input (`"`, `*`, `:`, `^`, `-`, `NEAR`, `(`) is matched
@@ -304,5 +337,11 @@ mod tests {
         assert!(search(&c, "(grace)", None).is_ok());
         // A multi-word query still matches (both tokens present in a verse).
         assert!(!search(&c, "good shepherd", Some("ESV")).unwrap().is_empty());
+
+        let headings = list_section_headings(&c, "ESV").unwrap();
+        assert!(!headings.is_empty());
+        assert!(headings
+            .iter()
+            .any(|h| h.heading == "The Parable of the Prodigal Son"));
     }
 }

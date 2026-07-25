@@ -1,13 +1,19 @@
 // Main header = custom window bar. Left: Doxa Theou wordmark. Then global search
 // + Layout menu. Right cluster (order per spec): Bible reader ▾ · Notes ·
 // Settings · window controls (min / max-restore / close).
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { findSectionHeading } from "../api";
+import {
+  findSectionHeading,
+  listSectionHeadings,
+  type HeadingSuggestion,
+} from "../api";
 import { useWorkspace } from "../state/workspace";
 import { exactReference } from "./CommandPalette";
 import { useDock } from "./dock";
+import { GhostTextInput } from "./GhostTextInput";
 import { setPendingSearch } from "./globalSearch";
+import { suggestCompletion } from "./inlineSuggest";
 import { Menu, type MenuAction } from "./Menu";
 import {
   BibleIcon,
@@ -28,6 +34,19 @@ export function Header() {
   const dock = useDock();
   const [query, setQuery] = useState("");
   const [maximized, setMaximized] = useState(false);
+  const [headings, setHeadings] = useState<HeadingSuggestion[]>([]);
+
+  // Loaded once (cached in api.ts) — feeds the inline suggestion below.
+  useEffect(() => {
+    listSectionHeadings(ws.defaultTranslation)
+      .then(setHeadings)
+      .catch(() => setHeadings([]));
+  }, [ws.defaultTranslation]);
+
+  const suggestion = useMemo(
+    () => suggestCompletion(query, ws.books, headings),
+    [query, ws.books, headings],
+  );
 
   // Track maximize state to swap the maximize/restore icon. No-ops outside Tauri.
   useEffect(() => {
@@ -140,11 +159,12 @@ export function Header() {
         >
           <SearchIcon size={ICON.md} />
         </span>
-        <input
-          className="input w-full pl-[28px]!"
+        <GhostTextInput
+          className="pl-[28px]!"
           placeholder="Search scripture…"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={setQuery}
+          suggestion={suggestion}
           aria-label="Search scripture"
         />
       </form>

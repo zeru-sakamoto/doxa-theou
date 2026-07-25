@@ -41,6 +41,13 @@ export interface HeadingMatch {
   verse_start: number;
 }
 
+export interface HeadingSuggestion {
+  book_id: number;
+  chapter: number;
+  verse_start: number;
+  heading: string;
+}
+
 export interface SearchHit {
   verse_ref_id: number;
   book_id: number;
@@ -83,6 +90,23 @@ export const search = (query: string, translation?: string) =>
 // Son" — used by global search to jump straight to the passage.
 export const findSectionHeading = (title: string, translation: string) =>
   invoke<HeadingMatch | null>("find_section_heading", { title, translation });
+
+// Every section heading for a translation, in reading order — fetched once
+// and cached so the search bars' inline suggestions can prefix-match locally
+// on every keystroke instead of round-tripping per character.
+const headingListCache = new Map<string, HeadingSuggestion[]>();
+
+export const listSectionHeadings = async (
+  translation: string,
+): Promise<HeadingSuggestion[]> => {
+  const cached = headingListCache.get(translation);
+  if (cached) return cached;
+  const list = await invoke<HeadingSuggestion[]>("list_section_headings", {
+    translation,
+  });
+  headingListCache.set(translation, list);
+  return list;
+};
 
 // Install a prebuilt bible.sqlite (from scripts/import_bible.py) as the active
 // Bible DB. Validated + atomically swapped in Rust; caller should reload after.

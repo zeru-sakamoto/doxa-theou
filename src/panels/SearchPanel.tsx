@@ -5,14 +5,18 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   findSectionHeading,
+  listSectionHeadings,
   search as apiSearch,
+  type HeadingSuggestion,
   type SearchHit,
 } from "../api";
 import { useNotes } from "../state/notes";
 import { useWorkspace } from "../state/workspace";
 import { exactReference } from "../workspace/CommandPalette";
 import { useDock } from "../workspace/dock";
+import { GhostTextInput } from "../workspace/GhostTextInput";
 import { takePendingSearch } from "../workspace/globalSearch";
+import { suggestCompletion } from "../workspace/inlineSuggest";
 import { notePreview } from "./notes/notes";
 
 export function SearchPanel() {
@@ -25,6 +29,19 @@ export function SearchPanel() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [ran, setRan] = useState(false);
+  const [headings, setHeadings] = useState<HeadingSuggestion[]>([]);
+
+  // Loaded once (cached in api.ts) — feeds the inline suggestion below.
+  useEffect(() => {
+    listSectionHeadings(ws.defaultTranslation)
+      .then(setHeadings)
+      .catch(() => setHeadings([]));
+  }, [ws.defaultTranslation]);
+
+  const suggestion = useMemo(
+    () => suggestCompletion(query, ws.books, headings),
+    [query, ws.books, headings],
+  );
 
   async function run(q: string) {
     setQuery(q);
@@ -111,11 +128,11 @@ export function SearchPanel() {
           run(query);
         }}
       >
-        <input
-          className="input w-full"
+        <GhostTextInput
           value={query}
           placeholder="Search scripture & notes…"
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={setQuery}
+          suggestion={suggestion}
         />
       </form>
 
