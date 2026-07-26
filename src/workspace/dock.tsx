@@ -190,10 +190,10 @@ const components = {
       </Suspense>
     </PanelErrorBoundary>
   ),
-  search: () => (
+  search: (props: IDockviewPanelProps) => (
     <PanelErrorBoundary>
       <Suspense fallback={<PanelFallback />}>
-        <SearchPanel />
+        <SearchPanel {...props} />
       </Suspense>
     </PanelErrorBoundary>
   ),

@@ -123,6 +123,8 @@ src/
     dock.tsx               dockview wrapper, panel registry (Notes/Search/Settings lazy, Home eager), watermarkComponent, DockProvider/useDock, tab context menu (Duplicate tab, Close others, Close), joins an existing Reader/Notes group instead of re-splitting, snaps a two-group divider to the exact middle
     LoadingScreen.tsx      full-window pulsing wordmark overlay; fades out over the mounted dock (no swap flash)
     Menu.tsx               reusable dropdown menu
+    useMenuAlign.ts        clamps a popover (Menu + the notes header popovers) back inside its dock panel's bounds on open/resize
+    useArrowScroll.ts      Up/Down-arrow scrolling for a panel's main scrollable content, active only while that panel is dockview's active tab; shared by Reader, Notes, Search
     icons.tsx              inline SVG icon set + ICON size scale (BibleIcon marks the reader)
     Toast.tsx              transient bottom-center toast (doxa:toast) — e.g. layout save/reset feedback
     ErrorBoundary.tsx      top-level crash catcher → message + Reload (per-panel boundary lives in dock.tsx)
@@ -132,10 +134,13 @@ src/
     ReaderPanel.tsx        scripture reader (one translation per panel), shows one chapter at a time
     reader/ChapterView.tsx renders a chapter's verses split into heading segments, rows/paragraph flow modes
     reader/TocDrawer.tsx   in-panel book/chapter navigator
-    NotesPanel.tsx         header (list/search/filter/color/⋯) + editor host
-    notes/NotesDrawer.tsx  in-panel note-list drawer (cards: color dot, title-or-preview, tags, anchors); Ctrl/Cmd-click opens a note in a new background tab
+    NotesPanel.tsx         header (list/search/filter/display-toggle/color/⋯) + editor host; no note selected → full-width list instead of the editor
+    notes/NotesDrawer.tsx  note list, two variants: "sidebar" (collapsible column beside an open note) and "inline" (full-width, no note open); Ctrl/Cmd-click opens a note in a new background tab
+    notes/NotesCardGrid.tsx    full-width card-grid layout for the same note list, alternative to NotesDrawer's "inline" bars variant
+    notes/NoteRowContent.tsx   one note's summary (color dot, title-or-preview, tag pills, anchors) shared by the sidebar, inline bars, and card grid
     notes/NotesFilterMenu.tsx  tag (text) / book (multi-select) filter popover
     notes/NotesColorMenu.tsx   per-note color swatch picker (header, left of ⋯)
+    notes/NotebookMenu.tsx     per-note notebook picker (header)
     notes/NotesEditor.tsx      Tiptap editor host: toolbar, anchor bar, title input, content
     notes/NotesEditorToolbar.tsx  formatting toolbar, wraps by button-group when narrow
     notes/NotesAnchorBar.tsx   verse-anchor rows + composer (autocomplete, keyboard nav, chapter/verse validation)
@@ -255,13 +260,13 @@ rather than snapping straight in, and honors `prefers-reduced-motion`.
 
 Registered in `dock.tsx` under a `components` map (`id → component`).
 
-| Panel        | Wired to backend                       | Notes                                                                                                                                                                                        |
-| ------------ | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Home**     | —                                      | Landing view: quick actions (start reading, open Notes/Search/Settings) + a recently-edited-notes list. The dockview watermark shown whenever the dock is empty — not an openable panel/tab. |
-| **Reader**   | `get_chapter`, `list_books`            | One translation, chosen at open time ("version-dedicated").                                                                                                                                  |
-| **Search**   | `search` (FTS5 / bm25)                 | **Scripture** group (FTS5/bm25 via `search`) + **Notes** group (client-side substring match over the in-memory notes — title/tags/body); note hits open in the Notes panel.                  |
-| **Notes**    | `load_notes`/`save_note`/`delete_note` | Header, list, and a real Tiptap editor (toolbar, anchors, optional title); notes persist to disk via `NotesProvider` (`src/state/notes.tsx`), debounced per-note.                            |
-| **Settings** | `list_translations`, `import_bible_db` | Theme toggle, default translation, Bible-database import (pick a prebuilt `bible.sqlite`), shared highlight palette, notes folder picker, notes-panel placement (Active/Left/Right).         |
+| Panel        | Wired to backend                       | Notes                                                                                                                                                                                                                                                                                            |
+| ------------ | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Home**     | —                                      | Landing view: quick actions (start reading, open Notes/Search/Settings) + a recently-edited-notes list. The dockview watermark shown whenever the dock is empty — not an openable panel/tab.                                                                                                     |
+| **Reader**   | `get_chapter`, `list_books`            | One translation, chosen at open time ("version-dedicated").                                                                                                                                                                                                                                      |
+| **Search**   | `search` (FTS5 / bm25)                 | **Scripture** group (FTS5/bm25 via `search`) + **Notes** group (client-side substring match over the in-memory notes — title/tags/body); note hits open in the Notes panel. The `.panel__scroll` results list scrolls via `workspace/useArrowScroll.ts` while Search is dockview's active panel. |
+| **Notes**    | `load_notes`/`save_note`/`delete_note` | Header, list, and a real Tiptap editor (toolbar, anchors, optional title); notes persist to disk via `NotesProvider` (`src/state/notes.tsx`), debounced per-note.                                                                                                                                |
+| **Settings** | `list_translations`, `import_bible_db` | Theme toggle, default translation, Bible-database import (pick a prebuilt `bible.sqlite`), shared highlight palette, notes folder picker, notes-panel placement (Active/Left/Right).                                                                                                             |
 
 **Home** (`HomePanel.tsx`). The empty-dock screen — passed only as
 dockview's `watermarkComponent` (auto-shown whenever the dock has zero
@@ -286,7 +291,12 @@ virtualization. `reader/ChapterView.tsx` renders the whole chapter in one
 shot (split into segments at passage headings, same as before, just no
 longer a per-item unit anything measures/virtualizes). Scrolling inside the
 Reader is plain page scroll within that one chapter's content; nothing
-auto-loads on reaching the top or bottom.
+auto-loads on reaching the top or bottom. Up/Down arrow keys also scroll it
+(`workspace/useArrowScroll.ts`, active only while this Reader is dockview's
+active panel): a tap nudges by a fixed step, holding the key ramps into a
+continuous `requestAnimationFrame`-driven scroll (steadier than relying on
+the OS's key-repeat timer), and the key handler blurs whatever button last
+had focus so arrow presses don't paint a stray focus ring on it.
 
 A jump (TOC, ⌘K, a note anchor, or the chapter buttons below — see §7) calls
 `ReaderPanel.jumpTo`: if the target chapter is already the one displayed, it
@@ -334,15 +344,37 @@ browser convention for ctrl-click-to-open-in-a-new-tab. A plain click still
 just switches the current tab's selection in place.
 
 **Notes.** Header, left to right: a hamburger toggles the note-list sidebar
-(shows an active/accent state while open), a fixed-width search field filters
-that list live (title/tags/body, substring match), a filter icon sits right
-beside it opening a Tags/Books popover, then, pinned to the far right of the
-bar, a per-note **color swatch** (`notes/NotesColorMenu.tsx`, only shown
-once a note is selected) and the "⋯" menu (`New note`, `Add anchor`). The
-filter popover's Tags mode is one free-text input; Books mode is a 3-column
-grid of book-abbreviation toggle buttons grouped under "Old
+(shown only once a note is open — see below), a flexible-width search field
+(`flex-1 min-w-[60px] max-w-[200px]`, shrinks before any other header control
+does) filters the list live (title/tags/body, substring match), a filter icon
+opens a Tags/Books popover, and — only while **no** note is selected — a
+Cards/Bars **display toggle** (`.seg.seg--icon`, icon-only segmented control).
+Pinned to the far right: a per-note **color swatch** (`notes/NotesColorMenu.tsx`)
+and **notebook picker** (`notes/NotebookMenu.tsx`, both only shown once a note
+is selected) and the "⋯" menu (`New note`, `Add anchor`, `Close note`, `Delete
+note`). The filter popover's Tags mode is one free-text input; Books mode is a
+3-column grid of book-abbreviation toggle buttons grouped under "Old
 Testament"/"New Testament" headers (same `book.testament` split
-`reader/TocDrawer.tsx` uses).
+`reader/TocDrawer.tsx` uses). The header bar is a CSS container
+(`.reader__bar`'s `@container`), so `NotebookMenu`'s text label collapses to
+icon-only below 420px of available width rather than overflowing.
+
+**No note selected** ("notes home"): instead of the "Select a note to start
+writing" placeholder, the main content area shows the **full note list** at
+panel width — search/tag/book filtering works exactly the same as the
+sidebar's. It renders as either `notes/NotesDrawer.tsx` in its `"inline"`
+variant (today's row style, stretched full-width — "Bars") or
+`notes/NotesCardGrid.tsx` (a responsive `grid-cols-[repeat(auto-fill,minmax(240px,1fr))]`
+tile layout — "Cards"), per the header's display toggle. The choice is a
+**global** preference (`ws.notesListDisplay`, persisted to localStorage like
+`notesSplitSide`/`notesLastColor`) — every Notes tab shares it. Both layouts,
+plus the sidebar, render a note's summary through the shared
+`notes/NoteRowContent.tsx` (color dot, title-or-preview, tag pills, anchors)
+so there's one definition of what a note "row" looks like. Selecting a note
+switches back to the editor and restores the header to its normal
+note-open state (hamburger back, display toggle gone — the 244px sidebar
+always uses bars-style rows regardless of the preference, so a toggle with
+no visible effect there would be confusing).
 
 Notes are loaded once at startup by `NotesProvider` (`src/state/notes.tsx`,
 wraps `WorkspaceShell` in `App.tsx`) via the real Rust commands
@@ -350,15 +382,28 @@ wraps `WorkspaceShell` in `App.tsx`) via the real Rust commands
 Markdown-on-disk with frontmatter (`id`, `title`, `tags`, `anchors`, `color`,
 `created`, `modified`) is the source of truth, `notes.sqlite` is the search
 index. Edits are debounced (600ms) per-note before writing to disk.
-`notes/notes.ts` is just the frontend-side helpers: the list preview
-(`notePreview()`), the highlight palette, and anchor parsing (shared with the
-Reader's highlight index). Unlike the Reader's TOC drawer, the note-list sidebar
-(`notes/NotesDrawer.tsx`) isn't an overlay; it's a collapsible flex column
-that animates width and pushes the editor over rather than floating on top
-with a scrim, so it never covers the header. Each card shows an optional
-color dot, the title (or, if the note has none, a Markdown-stripped preview
-of the body via `notes/notes.ts`'s `notePreview()`), tag pills, and the
-note's anchors joined as a preview line (`John 3:16 · Rom 8:28`).
+`notes/notes.ts` is the frontend-side helpers: the list preview
+(`notePreview()`), the highlight palette, `NotesListDisplay`, and anchor
+parsing (shared with the Reader's highlight index). Unlike the Reader's TOC
+drawer, the note-list sidebar (`notes/NotesDrawer.tsx`'s `"sidebar"` variant)
+isn't an overlay; it's a collapsible flex column that animates width and
+pushes the editor over rather than floating on top with a scrim, so it never
+covers the header.
+
+Whichever note list is currently mounted (sidebar, inline bars, or card
+grid) is also driven by `workspace/useArrowScroll.ts` — Up/Down arrow keys
+scroll it while this Notes panel is active, sharing one ref (`NotesDrawer`
+and `NotesCardGrid` both accept an optional `scrollRef` forwarded to their
+actual scrolling element). It's skipped while the editor's contenteditable
+has focus, so it never fights Tiptap's own cursor movement.
+
+Every header popover (`Menu.tsx`, `NotesFilterMenu`, `NotebookMenu`,
+`NotesColorMenu`) is fixed-width and anchors to a static left/right CSS edge,
+which can overflow a narrow/split dock panel. `workspace/useMenuAlign.ts`
+measures the popover once it opens and nudges it back inside the nearest
+`.panel` ancestor's bounds via `margin-left` (not `transform`, so it doesn't
+fight Motion's own entrance-animation transform), re-checking on window
+resize while open.
 
 **Note editor** (`notes/NotesEditor.tsx`), mounted once a card is selected:
 
@@ -520,3 +565,7 @@ Each has an upgrade path noted in-code:
 - No reference-history tracking exists (`activeReference` is a single
   overwritten value, not a list), so Home surfaces recent _notes_ activity
   only, not recently-read passages.
+- The Notes 244px sidebar always renders bars-style rows and ignores
+  `ws.notesListDisplay` — cards don't fit that width, so this is a hard rule,
+  not a follow-up TODO. Only the full-width "notes home" list (no note
+  selected) honors the Cards/Bars preference.

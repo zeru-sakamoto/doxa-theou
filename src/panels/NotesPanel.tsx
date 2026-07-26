@@ -2,13 +2,25 @@
 // editor (live type-to-transform Markdown). Notes live in NotesProvider
 // (src/state/notes.tsx): loaded from disk, persisted through Rust on edit,
 // and shared with the Reader for verse-anchor highlighting.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import type { IDockviewPanelProps } from "dockview-react";
 import { useNotes } from "../state/notes";
 import { formatReference, useWorkspace } from "../state/workspace";
 import { useDock } from "../workspace/dock";
 import { Menu } from "../workspace/Menu";
-import { CloseIcon, ICON, MenuIcon, MoreIcon } from "../workspace/icons";
+import {
+  BulletListIcon,
+  CardsIcon,
+  CloseIcon,
+  ICON,
+  MenuIcon,
+  MoreIcon,
+  PlusIcon,
+} from "../workspace/icons";
+import { useArrowScroll } from "../workspace/useArrowScroll";
+import type { Note } from "./notes/notes";
+import { NotebookMenu } from "./notes/NotebookMenu";
+import { NotesCardGrid } from "./notes/NotesCardGrid";
 import { NotesColorMenu } from "./notes/NotesColorMenu";
 import { NotesDrawer } from "./notes/NotesDrawer";
 import { NotesEditor } from "./notes/NotesEditor";
@@ -35,6 +47,18 @@ export function NotesPanel({ api, params }: IDockviewPanelProps<NotesParams>) {
   useEffect(() => {
     api.updateParameters({ noteId: selectedId ?? undefined });
   }, [api, selectedId]);
+
+  const [isActive, setIsActive] = useState(api.isActive);
+  useEffect(() => {
+    const d = api.onDidActiveChange(() => setIsActive(api.isActive));
+    return () => d.dispose();
+  }, [api]);
+  // Whichever note-list view is currently mounted (sidebar, inline bars, or
+  // card grid) — arrow keys scroll it while this panel is active, skipped
+  // while typing in the editor (see useArrowScroll).
+  const listScrollRef = useRef<HTMLDivElement>(null);
+  useArrowScroll(isActive, listScrollRef);
+
   const [anchorDraft, setAnchorDraft] = useState<string | null>(null);
   const [tagDraft, setTagDraft] = useState("");
   const [query, setQuery] = useState("");
@@ -53,6 +77,11 @@ export function NotesPanel({ api, params }: IDockviewPanelProps<NotesParams>) {
     setSelectedId(id);
     setDrawerOpen(false);
     setAnchorDraft(null);
+  }
+
+  function handleSelectNote(note: Note, e: MouseEvent) {
+    if (e.ctrlKey || e.metaKey) dock.openNotes(note.id, { inactive: true });
+    else selectNote(note.id);
   }
 
   function handleNewNote() {
@@ -127,6 +156,12 @@ export function NotesPanel({ api, params }: IDockviewPanelProps<NotesParams>) {
     return Array.from(set).sort();
   }, [notes]);
 
+  const allNotebooks = useMemo(() => {
+    const set = new Set<string>();
+    for (const n of notes) if (n.notebook) set.add(n.notebook);
+    return Array.from(set).sort();
+  }, [notes]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const selectedBooks =
@@ -158,22 +193,24 @@ export function NotesPanel({ api, params }: IDockviewPanelProps<NotesParams>) {
   return (
     <div className="panel">
       <div className="reader__bar">
-        <button
-          className={"iconbtn" + (drawerOpen ? " is-active" : "")}
-          title="Notes list"
-          aria-label="Notes list"
-          aria-expanded={drawerOpen}
-          onClick={() => setDrawerOpen((o) => !o)}
-        >
-          <MenuIcon size={ICON.md} />
-        </button>
+        {selectedNote && (
+          <button
+            className={"iconbtn shrink-0" + (drawerOpen ? " is-active" : "")}
+            title="Notes list"
+            aria-label="Notes list"
+            aria-expanded={drawerOpen}
+            onClick={() => setDrawerOpen((o) => !o)}
+          >
+            <MenuIcon size={ICON.md} />
+          </button>
+        )}
         <input
-          className="input w-[200px]"
+          className="input flex-1 min-w-[60px] max-w-[200px]"
           value={query}
           placeholder="Search notes…"
           onChange={(e) => {
             setQuery(e.target.value);
-            if (e.target.value.trim()) setDrawerOpen(true);
+            if (selectedNote && e.target.value.trim()) setDrawerOpen(true);
           }}
         />
         <NotesFilterMenu
@@ -185,16 +222,62 @@ export function NotesPanel({ api, params }: IDockviewPanelProps<NotesParams>) {
           onToggleBook={toggleBook}
           onClear={clearFilters}
         />
-        <div className="flex items-center gap-2 ml-auto">
+        {!selectedNote && (
+          <div
+            className="seg seg--icon shrink-0"
+            role="group"
+            aria-label="Notes list layout"
+          >
+            <button
+              type="button"
+              className={
+                "seg__btn" + (ws.notesListDisplay === "cards" ? " is-on" : "")
+              }
+              title="Card view"
+              aria-label="Card view"
+              aria-pressed={ws.notesListDisplay === "cards"}
+              onClick={() => ws.setNotesListDisplay("cards")}
+            >
+              <CardsIcon size={ICON.sm} />
+            </button>
+            <button
+              type="button"
+              className={
+                "seg__btn" + (ws.notesListDisplay === "bars" ? " is-on" : "")
+              }
+              title="Bar view"
+              aria-label="Bar view"
+              aria-pressed={ws.notesListDisplay === "bars"}
+              onClick={() => ws.setNotesListDisplay("bars")}
+            >
+              <BulletListIcon size={ICON.sm} />
+            </button>
+          </div>
+        )}
+        <div className="flex items-center gap-2 ml-auto shrink-0">
           {selectedNote && (
             <NotesColorMenu color={selectedNote.color} onChange={updateColor} />
           )}
+          {selectedNote && (
+            <NotebookMenu
+              notebooks={allNotebooks}
+              value={selectedNote.notebook}
+              onChange={(notebook) => updateNote(selectedNote.id, { notebook })}
+            />
+          )}
+          <button
+            className="iconbtn"
+            title="New note"
+            aria-label="New note"
+            onClick={handleNewNote}
+          >
+            <PlusIcon size={ICON.md} />
+          </button>
           <Menu
             triggerClassName="iconbtn"
             title="More"
             align="right"
             items={[
-              { label: "New note", onSelect: handleNewNote },
               {
                 label: "Add anchor",
                 disabled: !selectedNote,
@@ -206,8 +289,15 @@ export function NotesPanel({ api, params }: IDockviewPanelProps<NotesParams>) {
                   ),
               },
               {
+                label: "Close note",
+                disabled: !selectedNote,
+                onSelect: () => selectNote(null),
+              },
+              {
                 label: "Delete note",
                 disabled: !selectedNote,
+                danger: true,
+                separatorBefore: true,
                 onSelect: handleDeleteNote,
               },
             ]}
@@ -218,15 +308,14 @@ export function NotesPanel({ api, params }: IDockviewPanelProps<NotesParams>) {
       </div>
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        <NotesDrawer
-          open={drawerOpen}
-          notes={filtered}
-          onSelect={(note, e) =>
-            e.ctrlKey || e.metaKey
-              ? dock.openNotes(note.id, { inactive: true })
-              : selectNote(note.id)
-          }
-        />
+        {selectedNote && (
+          <NotesDrawer
+            open={drawerOpen}
+            notes={filtered}
+            onSelect={handleSelectNote}
+            scrollRef={listScrollRef}
+          />
+        )}
 
         <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
           {selectedNote ? (
@@ -240,8 +329,19 @@ export function NotesPanel({ api, params }: IDockviewPanelProps<NotesParams>) {
               onTitleChange={(title) => updateNote(selectedNote.id, { title })}
               onBodyChange={(body) => updateNote(selectedNote.id, { body })}
             />
+          ) : ws.notesListDisplay === "cards" ? (
+            <NotesCardGrid
+              notes={filtered}
+              onSelect={handleSelectNote}
+              scrollRef={listScrollRef}
+            />
           ) : (
-            <p className="panel__muted p-4">Select a note to start writing.</p>
+            <NotesDrawer
+              variant="inline"
+              notes={filtered}
+              onSelect={handleSelectNote}
+              scrollRef={listScrollRef}
+            />
           )}
         </div>
       </div>

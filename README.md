@@ -9,9 +9,11 @@ between chapters via the TOC drawer, ⌘K, a note anchor, or the chapter up/down
 buttons, which roll across book boundaries.
 
 The Notes panel has a searchable, filterable note list (by tag or by book).
-Notes are Markdown files with frontmatter, edited in a live Tiptap editor and
-persisted to disk (a rebuilt SQLite index backs search and verse-anchor
-highlighting).
+Opening a Notes tab with no note selected shows that list at full panel
+width — as cards or full-width bars, a preference toggled in the header —
+instead of a blank editor. Notes are Markdown files with frontmatter, edited
+in a live Tiptap editor and persisted to disk (a rebuilt SQLite index backs
+search and verse-anchor highlighting).
 
 Opening another Reader or note tabs it into the existing Reader/Notes group
 instead of re-splitting the screen; right-click a tab for **Duplicate tab**,

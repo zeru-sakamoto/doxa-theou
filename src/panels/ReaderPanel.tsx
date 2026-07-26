@@ -25,6 +25,7 @@ import {
   MenuIcon,
   ParagraphIcon,
 } from "../workspace/icons";
+import { useArrowScroll } from "../workspace/useArrowScroll";
 import { ChapterView } from "./reader/ChapterView";
 import { TocDrawer } from "./reader/TocDrawer";
 
@@ -51,13 +52,6 @@ interface CurrentPos {
 // Brief highlight pulse on the verse a chapter-changing jump lands on (see
 // FLASH_DURATION_MS below) — flashVerse is cleared after this.
 const FLASH_DURATION_MS = 900;
-
-// Arrow-key scrolling: a tap nudges by ARROW_TAP_STEP; a held key drives
-// ARROW_HOLD_SPEED px/frame via requestAnimationFrame instead of relying on
-// the OS's key-repeat timer, which fires at an uneven rate that reads as
-// jitter when paired with per-event scrollBy calls.
-const ARROW_TAP_STEP = 60;
-const ARROW_HOLD_SPEED = 18;
 
 // Pure arithmetic against the static chapterCount table — no round-trip
 // needed to detect a book boundary. null means the absolute edge of the
@@ -300,65 +294,9 @@ export function ReaderPanel({
   }, [api, markActive]);
 
   // Up/Down arrow keys scroll the chapter while this Reader is the active
-  // panel — skipped while an input/textarea has focus (e.g. a search box)
-  // so this doesn't hijack normal typing. Continuous motion while a key is
-  // held comes from our own rAF loop, not the OS's key-repeat timer: that
-  // timer fires at an uneven rate (a long initial delay, then bursts), and
-  // restarting a scrollBy on each of those events produced visible jitter.
-  useEffect(() => {
-    if (!isActive) return;
-    const held = new Set<string>();
-    let raf: number | null = null;
-
-    function tick() {
-      const el = containerRef.current;
-      if (el) {
-        if (held.has("ArrowDown")) el.scrollTop += ARROW_HOLD_SPEED;
-        if (held.has("ArrowUp")) el.scrollTop -= ARROW_HOLD_SPEED;
-      }
-      raf = held.size > 0 ? requestAnimationFrame(tick) : null;
-    }
-
-    function stop() {
-      held.clear();
-      if (raf != null) cancelAnimationFrame(raf);
-      raf = null;
-    }
-
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
-      const target = e.target as HTMLElement | null;
-      if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA") return;
-      e.preventDefault();
-      if (e.repeat) return; // held-key motion comes from the rAF loop, not OS repeat
-      // Arrow keys don't move focus off whatever button was last clicked
-      // (e.g. the TOC toggle), but they do flip the browser's focus-visible
-      // heuristic on for it, painting a stray ring — blur it.
-      target?.blur();
-      held.add(e.key);
-      containerRef.current?.scrollBy({
-        top: e.key === "ArrowDown" ? ARROW_TAP_STEP : -ARROW_TAP_STEP,
-        behavior: "auto",
-      });
-      if (raf == null) raf = requestAnimationFrame(tick);
-    }
-
-    function onKeyUp(e: KeyboardEvent) {
-      held.delete(e.key);
-    }
-
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("keyup", onKeyUp);
-    // A held key with no matching keyup (e.g. alt-tab away mid-hold) would
-    // otherwise scroll forever — stop as soon as focus leaves the window.
-    window.addEventListener("blur", stop);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("keyup", onKeyUp);
-      window.removeEventListener("blur", stop);
-      stop();
-    };
-  }, [isActive]);
+  // panel — skipped while an input/textarea/contenteditable has focus so
+  // this doesn't hijack normal typing.
+  useArrowScroll(isActive, containerRef);
 
   // Cmd-K / search / note-anchor "go to reference" drives whichever Reader
   // dock.gotoReference targeted. Matched by panelId rather than api.isActive:

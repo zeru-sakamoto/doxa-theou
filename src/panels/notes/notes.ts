@@ -34,6 +34,9 @@ export const NOTES_HIGHLIGHT_SWATCHES: Swatch[] = [
 // so switching palette never recolors old highlights (Logos-style).
 export type PaletteId = "koine" | "manuscript" | "vivid";
 
+// Preferred layout for the full-width note list shown when no note is open.
+export type NotesListDisplay = "cards" | "bars";
+
 export interface Palette {
   id: PaletteId;
   name: string;

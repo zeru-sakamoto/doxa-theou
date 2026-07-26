@@ -18,7 +18,7 @@ import {
   listBooks,
   listTranslations,
 } from "../api";
-import type { PaletteId } from "../panels/notes/notes";
+import type { NotesListDisplay, PaletteId } from "../panels/notes/notes";
 
 export type Theme = "light" | "dark";
 export type NotesSplitSide = "left" | "right" | "active";
@@ -64,6 +64,8 @@ interface WorkspaceCtx {
   setAnchorPalette: (p: PaletteId) => void;
   notesSplitSide: NotesSplitSide;
   setNotesSplitSide: (s: NotesSplitSide) => void;
+  notesListDisplay: NotesListDisplay;
+  setNotesListDisplay: (d: NotesListDisplay) => void;
 }
 
 const Ctx = createContext<WorkspaceCtx | null>(null);
@@ -75,6 +77,7 @@ const NOTES_FOLDER_KEY = "doxa-notes-folder";
 const ANCHOR_PALETTE_KEY = "doxa-anchor-palette";
 const LAST_READER_POSITION_KEY = "doxa-last-reader-position";
 const NOTES_SPLIT_SIDE_KEY = "doxa-notes-split-side";
+const NOTES_LIST_DISPLAY_KEY = "doxa-notes-list-display";
 
 function initialLastReaderPosition(): LastReaderPosition | null {
   const raw = localStorage.getItem(LAST_READER_POSITION_KEY);
@@ -139,6 +142,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     () =>
       (localStorage.getItem(NOTES_SPLIT_SIDE_KEY) as NotesSplitSide) || "right",
   );
+  const [notesListDisplay, setNotesListDisplayState] =
+    useState<NotesListDisplay>(
+      () =>
+        (localStorage.getItem(NOTES_LIST_DISPLAY_KEY) as NotesListDisplay) ||
+        "bars",
+    );
 
   // Apply + persist theme (before paint to avoid a flash).
   useLayoutEffect(() => {
@@ -199,6 +208,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setNotesSplitSideState(s);
     localStorage.setItem(NOTES_SPLIT_SIDE_KEY, s);
   }, []);
+  const setNotesListDisplay = useCallback((d: NotesListDisplay) => {
+    setNotesListDisplayState(d);
+    localStorage.setItem(NOTES_LIST_DISPLAY_KEY, d);
+  }, []);
   const setLastReaderPosition = useCallback((p: LastReaderPosition | null) => {
     setLastReaderPositionState(p);
     if (p) localStorage.setItem(LAST_READER_POSITION_KEY, JSON.stringify(p));
@@ -242,6 +255,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setAnchorPalette,
       notesSplitSide,
       setNotesSplitSide,
+      notesListDisplay,
+      setNotesListDisplay,
     }),
     [
       theme,
@@ -269,6 +284,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setAnchorPalette,
       notesSplitSide,
       setNotesSplitSide,
+      notesListDisplay,
+      setNotesListDisplay,
     ],
   );
 

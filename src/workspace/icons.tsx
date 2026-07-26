@@ -81,6 +81,19 @@ export const BibleIcon = (p: SVGProps<SVGSVGElement> & { size?: number }) => (
   </Svg>
 );
 
+export const NotebookIcon = (
+  p: SVGProps<SVGSVGElement> & { size?: number },
+) => (
+  <Svg {...p}>
+    <rect x="4" y="2" width="16" height="20" rx="2" />
+    <path d="M15 2v20" />
+    <path d="M2 6h4" />
+    <path d="M2 10h4" />
+    <path d="M2 14h4" />
+    <path d="M2 18h4" />
+  </Svg>
+);
+
 export const ChevronRightIcon = (
   p: SVGProps<SVGSVGElement> & { size?: number },
 ) => (
@@ -117,6 +130,15 @@ export const LayoutIcon = (p: SVGProps<SVGSVGElement> & { size?: number }) => (
     <rect x="3" y="3" width="18" height="18" rx="2" />
     <path d="M9 3v18" />
     <path d="M9 12h12" />
+  </Svg>
+);
+
+export const CardsIcon = (p: SVGProps<SVGSVGElement> & { size?: number }) => (
+  <Svg {...p}>
+    <rect x="3" y="3" width="8" height="8" rx="1.5" />
+    <rect x="13" y="3" width="8" height="8" rx="1.5" />
+    <rect x="3" y="13" width="8" height="8" rx="1.5" />
+    <rect x="13" y="13" width="8" height="8" rx="1.5" />
   </Svg>
 );
 

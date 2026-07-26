@@ -85,8 +85,8 @@ export function ChapterView({
       return {
         backgroundImage: layers.join(", "),
         backgroundBlendMode: list.length > 1 ? "multiply" : "normal",
-        padding: "0.05em 0.3em",
-        margin: "-0.05em -0.3em",
+        padding: "0.2em 0.3em",
+        margin: "-0.2em -0.3em",
         borderRadius: "var(--radius-sm)",
         boxDecorationBreak: "clone",
         WebkitBoxDecorationBreak: "clone",

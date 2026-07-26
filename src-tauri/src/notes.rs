@@ -21,6 +21,8 @@ pub struct Note {
     #[serde(default)]
     pub anchors: Vec<String>,
     #[serde(default)]
+    pub notebook: String,
+    #[serde(default)]
     pub color: Option<String>,
     #[serde(default)]
     pub created: String,
@@ -110,6 +112,7 @@ pub fn parse_note(raw: &str) -> Result<Note, String> {
     let mut id = String::new();
     let (mut title, mut created, mut modified) = (String::new(), String::new(), String::new());
     let (mut tags, mut anchors) = (Vec::new(), Vec::new());
+    let mut notebook = String::new();
     let mut color: Option<String> = None;
     let mut ended = false;
     let mut body_lines: Vec<&str> = Vec::new();
@@ -131,6 +134,7 @@ pub fn parse_note(raw: &str) -> Result<Note, String> {
             "modified" => modified = val.to_string(),
             "tags" => tags = parse_list(val),
             "anchors" => anchors = parse_list(val),
+            "notebook" => notebook = val.to_string(),
             "color" if !val.is_empty() => color = Some(val.to_string()),
             _ => {}
         }
@@ -143,6 +147,7 @@ pub fn parse_note(raw: &str) -> Result<Note, String> {
         title,
         tags,
         anchors,
+        notebook,
         color,
         created,
         modified,
@@ -156,6 +161,7 @@ pub fn serialize_note(note: &Note) -> String {
     s.push_str(&format!("title: {}\n", note.title));
     s.push_str(&format!("tags: [{}]\n", note.tags.join(", ")));
     s.push_str(&format!("anchors: [{}]\n", note.anchors.join(", ")));
+    s.push_str(&format!("notebook: {}\n", note.notebook));
     if let Some(c) = &note.color {
         s.push_str(&format!("color: {c}\n"));
     }
@@ -328,6 +334,7 @@ mod tests {
             title: "Title".into(),
             tags: vec!["t1".into()],
             anchors: vec!["John 3:16".into()],
+            notebook: String::new(),
             color: Some("var(--highlight-rose)".into()),
             created: "2026-01-01".into(),
             modified: "2026-01-02".into(),
@@ -350,6 +357,7 @@ mod tests {
             title: "Word".into(),
             tags: vec![],
             anchors: vec!["John 1:1".into()],
+            notebook: String::new(),
             color: Some("var(--highlight-indigo)".into()),
             created: String::new(),
             modified: String::new(),
@@ -391,6 +399,7 @@ mod tests {
             title: "Word".into(),
             tags: vec!["x".into()],
             anchors: vec![format!("{john} 1:1")],
+            notebook: String::new(),
             color: Some("var(--highlight-teal)".into()),
             created: "2026-01-01".into(),
             modified: "2026-01-01".into(),

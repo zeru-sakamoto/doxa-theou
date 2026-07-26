@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { DUR_FAST } from "../motion";
+import { useMenuAlign } from "./useMenuAlign";
 
 export interface MenuAction {
   label: string;
@@ -10,6 +11,7 @@ export interface MenuAction {
   onSelect: () => void;
   disabled?: boolean;
   danger?: boolean;
+  separatorBefore?: boolean;
 }
 
 export function Menu({
@@ -27,7 +29,9 @@ export function Menu({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const reduce = useReducedMotion();
+  useMenuAlign(open, listRef);
 
   useEffect(() => {
     if (!open) return;
@@ -59,6 +63,7 @@ export function Menu({
       <AnimatePresence>
         {open && (
           <motion.div
+            ref={listRef}
             className={"menu__list menu__list--" + align}
             role="menu"
             initial={reduce ? { opacity: 0 } : { opacity: 0, y: -4 }}
@@ -67,20 +72,24 @@ export function Menu({
             transition={{ duration: DUR_FAST }}
           >
             {items.map((it, i) => (
-              <button
-                key={i}
-                type="button"
-                role="menuitem"
-                className={"menu__item" + (it.danger ? " is-danger" : "")}
-                disabled={it.disabled}
-                onClick={() => {
-                  setOpen(false);
-                  it.onSelect();
-                }}
-              >
-                {it.icon && <span className="menu__icon">{it.icon}</span>}
-                <span>{it.label}</span>
-              </button>
+              <div key={i}>
+                {it.separatorBefore && (
+                  <div className="menu__separator" role="separator" />
+                )}
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={"menu__item" + (it.danger ? " is-danger" : "")}
+                  disabled={it.disabled}
+                  onClick={() => {
+                    setOpen(false);
+                    it.onSelect();
+                  }}
+                >
+                  {it.icon && <span className="menu__icon">{it.icon}</span>}
+                  <span>{it.label}</span>
+                </button>
+              </div>
             ))}
           </motion.div>
         )}

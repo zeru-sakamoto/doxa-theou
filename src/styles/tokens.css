@@ -252,6 +252,7 @@
 
   /* Same red in both themes — error/destructive states don't flip. */
   --danger: #e11d48;
+  --danger-tint: rgb(225 29 72 / 0.1);
 }
 
 /* ----------------------------------------------------------------------------
@@ -451,4 +452,5 @@
   --color-accent-tint: var(--accent-tint);
   --color-accent-tint-strong: var(--accent-tint-strong);
   --color-danger: var(--danger);
+  --color-danger-tint: var(--danger-tint);
 }

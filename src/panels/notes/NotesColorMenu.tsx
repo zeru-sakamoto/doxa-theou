@@ -9,6 +9,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { DUR_FAST } from "../../motion";
 import { useWorkspace } from "../../state/workspace";
 import { paletteById } from "./notes";
+import { useMenuAlign } from "../../workspace/useMenuAlign";
 
 interface Props {
   color: string | undefined;
@@ -20,7 +21,9 @@ export function NotesColorMenu({ color, onChange }: Props) {
   const swatches = paletteById(ws.anchorPalette).swatches;
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const reduce = useReducedMotion();
+  useMenuAlign(open, listRef);
 
   useEffect(() => {
     if (!open) return;
@@ -63,6 +66,7 @@ export function NotesColorMenu({ color, onChange }: Props) {
       <AnimatePresence>
         {open && (
           <motion.div
+            ref={listRef}
             className="menu__list menu__list--right flex flex-wrap gap-2 w-[168px] p-2"
             initial={reduce ? { opacity: 0 } : { opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}

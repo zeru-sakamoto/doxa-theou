@@ -7,6 +7,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { DUR_FAST } from "../../motion";
 import type { Book } from "../../api";
 import { FilterIcon, ICON } from "../../workspace/icons";
+import { useMenuAlign } from "../../workspace/useMenuAlign";
 
 interface Props {
   tags: string[];
@@ -30,7 +31,9 @@ export function NotesFilterMenu({
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"tags" | "books">("tags");
   const ref = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const reduce = useReducedMotion();
+  useMenuAlign(open, listRef);
 
   useEffect(() => {
     if (!open) return;
@@ -64,7 +67,8 @@ export function NotesFilterMenu({
       <AnimatePresence>
         {open && (
           <motion.div
-            className="menu__list menu__list--right flex flex-col gap-2 w-[260px] p-2"
+            ref={listRef}
+            className="menu__list menu__list--left flex flex-col gap-2 w-[260px] p-2"
             initial={reduce ? { opacity: 0 } : { opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={reduce ? { opacity: 0 } : { opacity: 0, y: -4 }}

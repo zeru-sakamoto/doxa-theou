@@ -65,6 +65,7 @@ export interface Note {
   title: string;
   tags: string[];
   anchors: string[];
+  notebook: string;
   color?: string;
   created: string;
   modified: string;

@@ -2,7 +2,8 @@
 // command; Notes is a client-side substring match over the in-memory notes
 // (title/tags/body), same as the Notes panel's own list filter. Driven by the
 // header's global search field (doxa:search) or its own input.
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import type { IDockviewPanelProps } from "dockview-react";
 import {
   findSectionHeading,
   listSectionHeadings,
@@ -17,12 +18,20 @@ import { useDock } from "../workspace/dock";
 import { GhostTextInput } from "../workspace/GhostTextInput";
 import { takePendingSearch } from "../workspace/globalSearch";
 import { suggestCompletion } from "../workspace/inlineSuggest";
+import { useArrowScroll } from "../workspace/useArrowScroll";
 import { notePreview } from "./notes/notes";
 
-export function SearchPanel() {
+export function SearchPanel({ api }: IDockviewPanelProps) {
   const ws = useWorkspace();
   const dock = useDock();
   const { notes } = useNotes();
+  const [isActive, setIsActive] = useState(api.isActive);
+  useEffect(() => {
+    const d = api.onDidActiveChange(() => setIsActive(api.isActive));
+    return () => d.dispose();
+  }, [api]);
+  const resultsRef = useRef<HTMLDivElement>(null);
+  useArrowScroll(isActive, resultsRef);
   const [query, setQuery] = useState("");
   const [searched, setSearched] = useState(""); // submitted term; drives both groups
   const [hits, setHits] = useState<SearchHit[]>([]);
@@ -136,7 +145,7 @@ export function SearchPanel() {
         />
       </form>
 
-      <div className="panel__scroll">
+      <div className="panel__scroll" ref={resultsRef}>
         {error && <p className="panel__error">{error}</p>}
         {!error && loading && <p className="panel__muted">Searching…</p>}
         {!error && !loading && ran && (
