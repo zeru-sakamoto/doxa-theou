@@ -21,7 +21,17 @@ inverted from the other). Full brand rationale lives in
 - **References / scannable data:** IBM Plex Mono.
 
 Fonts are self-hosted via `@fontsource/*` (offline; no CDN) and imported in
-`src/main.tsx`.
+`src/main.tsx`. `base.css` sets `font-synthesis: none` globally (crisp text,
+no browser-faked oblique/bold), which means every weight/style **combination**
+actually used has to be imported explicitly — e.g. `400-italic` for a plain
+italic mark, `600-italic` for bold+italic or an italicized semibold heading —
+or that combination silently renders as whichever face the browser falls back
+to (thinner/upright) instead of erroring. The notes editor's body text
+(`.tiptap` in `notes-editor.css`) uses `--font-serif` (Newsreader), matching
+the Reader panel's verse text at the same `--text-read` size — it previously
+used `--font-sans`, which rendered visually larger than the Reader at an
+identical font-size due to IBM Plex Sans' bigger x-height, so the two never
+looked matched even though the token was shared.
 
 ### Design workflow (required for any UI work)
 
@@ -138,7 +148,7 @@ src/
     notes/NotesDrawer.tsx  note list, two variants: "sidebar" (collapsible column beside an open note) and "inline" (full-width, no note open); Ctrl/Cmd-click opens a note in a new background tab
     notes/NotesCardGrid.tsx    full-width card-grid layout for the same note list, alternative to NotesDrawer's "inline" bars variant
     notes/NoteRowContent.tsx   one note's summary (color dot, title-or-preview, tag pills, anchors) shared by the sidebar, inline bars, and card grid
-    notes/NotesFilterMenu.tsx  tag (text) / book (multi-select) filter popover
+    notes/NotesFilterMenu.tsx  tag (text) / book (multi-select) / notebook (multi-select, incl. "Uncategorized") filter popover
     notes/NotesColorMenu.tsx   per-note color swatch picker (header, left of ⋯)
     notes/NotebookMenu.tsx     per-note notebook picker (header)
     notes/NotesEditor.tsx      Tiptap editor host: toolbar, anchor bar, title input, content
@@ -347,15 +357,18 @@ just switches the current tab's selection in place.
 (shown only once a note is open — see below), a flexible-width search field
 (`flex-1 min-w-[60px] max-w-[200px]`, shrinks before any other header control
 does) filters the list live (title/tags/body, substring match), a filter icon
-opens a Tags/Books popover, and — only while **no** note is selected — a
-Cards/Bars **display toggle** (`.seg.seg--icon`, icon-only segmented control).
+opens a Tags/Books/Notebooks popover, and — only while **no** note is selected —
+a Cards/Bars **display toggle** (`.seg.seg--icon`, icon-only segmented control).
 Pinned to the far right: a per-note **color swatch** (`notes/NotesColorMenu.tsx`)
 and **notebook picker** (`notes/NotebookMenu.tsx`, both only shown once a note
 is selected) and the "⋯" menu (`New note`, `Add anchor`, `Close note`, `Delete
 note`). The filter popover's Tags mode is one free-text input; Books mode is a
 3-column grid of book-abbreviation toggle buttons grouped under "Old
 Testament"/"New Testament" headers (same `book.testament` split
-`reader/TocDrawer.tsx` uses). The header bar is a CSS container
+`reader/TocDrawer.tsx` uses); Notebooks mode is a flat list of toggle buttons —
+an always-present **Uncategorized** row (matches notes with an empty
+`notebook`) followed by every distinct notebook name in use, the same
+`allNotebooks` derivation `NotebookMenu` uses. The header bar is a CSS container
 (`.reader__bar`'s `@container`), so `NotebookMenu`'s text label collapses to
 icon-only below 420px of available width rather than overflowing.
 

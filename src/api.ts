@@ -176,6 +176,33 @@ export const deleteNote = (id: string, folder: string | null) =>
 export const notesForChapter = (bookId: number, chapter: number) =>
   invoke<ChapterNote[]>("notes_for_chapter", { bookId, chapter });
 
+// Import Logos Bible Study .txt note exports; Rust reads/parses the files and
+// skips any passage group already imported (see src-tauri/src/logos_import.rs).
+export interface FileImportResult {
+  file: string;
+  book: string;
+  imported: number;
+  skipped: number;
+  warnings: string[];
+  imported_ids: string[];
+}
+export interface ImportSummary {
+  files: FileImportResult[];
+  total_imported: number;
+  total_skipped: number;
+}
+export const importLogosNotes = (
+  paths: string[],
+  folder: string | null,
+  color: string | undefined,
+) =>
+  invoke<ImportSummary>("import_logos_notes", {
+    paths,
+    folder,
+    now: new Date().toISOString(),
+    color,
+  });
+
 // Canonical chapter counts for the 66-book Protestant canon, indexed
 // by book id (1..66). Fixed across the imported translations (ESV/NASB/NKJV/AMP/
 // NIV) — no backend query needed. If a version's versification ever differs,

@@ -21,7 +21,7 @@ doxa-theou (display name **Doxa Theou**; the repo/crate/bundle-identifier keep t
 
 - `src/` — React/TypeScript frontend. Entry `src/main.tsx` (imports fonts + `styles/{tokens,base,shell}.css` and dockview CSS), root `src/App.tsx` (wraps `WorkspaceShell` in `WorkspaceProvider`). Talks to native code via `@tauri-apps/api` (`invoke`), wrapped with types in `src/api.ts`.
   - `src/workspace/` — the app shell: custom window-bar `Header`, `StatusBar` (live clock), `CommandPalette` (⌘K go-to-reference), `dock.tsx` (dockview wrapper + panel registry + `DockProvider`/`useDock` imperative API + layout save/restore in localStorage), reusable `Menu`, hand-rolled SVG `icons`.
-  - `src/panels/` — dockable panel components: `ReaderPanel` (shows one chapter at a time, no continuous scroll; `reader/ChapterView` renders the chapter's verses split into heading segments, `reader/TocDrawer` is the book/chapter accordion), `NotesPanel` (+ `notes/NotesDrawer` collapsible note-list sidebar — pushes the editor over rather than overlaying, `notes/NotesFilterMenu` tag/book filter popover, `notes/notes.ts` frontmatter loader — header/list are real, backed by sample Markdown-with-frontmatter notes; the editor body is still a stub), `SearchPanel`, `SettingsPanel` (theme toggle lives here). One Reader = one translation, chosen at open time.
+  - `src/panels/` — dockable panel components: `ReaderPanel` (shows one chapter at a time, no continuous scroll; `reader/ChapterView` renders the chapter's verses split into heading segments, `reader/TocDrawer` is the book/chapter accordion), `NotesPanel` (+ `notes/NotesDrawer` collapsible note-list sidebar — pushes the editor over rather than overlaying, `notes/NotesFilterMenu` tag/book/notebook filter popover, `notes/NotesEditor` a real Tiptap Markdown editor with toolbar/anchors, `notes/notes.ts` frontmatter loader — notes persist to disk via Rust commands, `notes.sqlite` is a rebuilt search index), `SearchPanel`, `SettingsPanel` (theme toggle lives here). One Reader = one translation, chosen at open time.
   - `src/state/workspace.tsx` — React-context store: theme (writes `data-theme`), books/translations loaded once, active reference/translation.
   - Modular workspace uses **dockview-react** (drag-to-dock, themed via `themeVisualStudio` + `--dv-*` overrides in `tokens.css`, scoped under `.dock-host`). Custom titlebar: `decorations:false` + window permissions in `capabilities/default.json`, controls via `getCurrentWindow()`.
 - `src-tauri/` — Rust backend, crate name `doxa_theou_lib` (see `src-tauri/Cargo.toml`).
@@ -39,6 +39,23 @@ doxa-theou (display name **Doxa Theou**; the repo/crate/bundle-identifier keep t
 `npm run tauri dev` / `npm run dev` are long-running processes, not one-shot commands — never launch either in the background just to "check it compiles"; use `npm run build` / `cargo check` for that instead. Because Vite's port is `strictPort: true`, a second instance never silently shares port 1420 — it fails loudly with `Port 1420 is already in use`, which almost always means a dev server (yours from an earlier step, or the user's own) is already running; check with `netstat -ano | grep :1420` (or `tasklist //FI "IMAGENAME eq node.exe"`) before assuming you need to start one. If you do start one in the background for a specific reason, stop that process yourself once you're done with it — don't leave it dangling for the user to notice and ask about. Never kill a dev server you didn't start (e.g. one already bound to 1420 before your first command) without confirming with the user first — it may be their active session.
 
 The frontend and Rust backend are two separate build systems (Vite/tsc for TS, Cargo for Rust) orchestrated together by the Tauri CLI; when adding a native capability, expose it as a `#[tauri::command]` in `lib.rs` and call it from React via `invoke()`.
+
+## Docs maintenance
+
+After any major change or behavior-affecting modification (a new feature, a
+changed panel/UI behavior, a fixed bug that alters documented behavior, a
+version bump), update the relevant docs in the same turn — don't leave it for
+a follow-up:
+
+- `README.md` — if the change affects what's described there (features, dev
+  workflow).
+- `docs/architecture.md` / `docs/front-end.md` / `docs/database.md` — whichever
+  covers the changed area (IPC surface, data stores, panels, tokens, file map).
+- This file, if the change makes an existing claim here stale (a file's
+  described role, a command, a listed convention).
+
+Skip only for changes with no user- or architecture-visible effect (pure
+refactors, formatting, comment-only edits).
 
 ## UI / Design workflow
 

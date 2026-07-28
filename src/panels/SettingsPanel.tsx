@@ -3,16 +3,22 @@
 // editor's default highlight; see notes.ts / tokens.css).
 import { useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { importBibleDb } from "../api";
+import { importBibleDb, importLogosNotes, type ImportSummary } from "../api";
+import { useNotes } from "../state/notes";
 import { useWorkspace } from "../state/workspace";
 import { ICON, MoonIcon, SunIcon } from "../workspace/icons";
 import { HIGHLIGHT_PALETTES, paletteById, type PaletteId } from "./notes/notes";
 
 export function SettingsPanel() {
   const ws = useWorkspace();
+  const { refreshNotes, lastImportedIds, recordImport, revertImport } =
+    useNotes();
   const swatches = paletteById(ws.anchorPalette).swatches;
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  const [importingLogos, setImportingLogos] = useState(false);
+  const [logosError, setLogosError] = useState<string | null>(null);
+  const [logosSummary, setLogosSummary] = useState<ImportSummary | null>(null);
 
   async function chooseNotesFolder() {
     const dir = await open({ directory: true, multiple: false });
@@ -38,6 +44,46 @@ export function SettingsPanel() {
       setImportError(String(e));
       setImporting(false);
     }
+  }
+
+  // Pick one or more Logos Bible Study exports (.txt or the HTML "Copy Bible
+  // Text" export — HTML also carries inline highlight spans, which the
+  // plain .txt export drops) and turn each passage-heading group into a
+  // note. Rust does the parsing/dedupe/writes; we just refresh the
+  // in-memory store so the Notes panel/Reader highlights pick up the new
+  // files without a full app reload.
+  async function importLogos() {
+    const files = await open({
+      multiple: true,
+      directory: false,
+      filters: [{ name: "Logos export", extensions: ["txt", "html", "htm"] }],
+    });
+    const paths = Array.isArray(files) ? files : files ? [files] : [];
+    if (paths.length === 0) return;
+    setImportingLogos(true);
+    setLogosError(null);
+    try {
+      const summary = await importLogosNotes(
+        paths,
+        ws.notesFolder,
+        ws.notesLastColor,
+      );
+      setLogosSummary(summary);
+      recordImport(summary.files.flatMap((f) => f.imported_ids));
+      await refreshNotes();
+    } catch (e) {
+      setLogosError(String(e));
+    } finally {
+      setImportingLogos(false);
+    }
+  }
+
+  // Undoes exactly the notes this import created (skipped/pre-existing ones
+  // are untouched). Available until the app restarts — recordImport's state
+  // lives in NotesProvider, not this panel, so switching tabs doesn't lose it.
+  function undoLogosImport() {
+    revertImport();
+    setLogosSummary(null);
   }
 
   // Switching palette resets the default highlight color to that palette's
@@ -220,6 +266,60 @@ export function SettingsPanel() {
               Choose folder…
             </button>
           </div>
+          <div className="flex items-center justify-between gap-3 py-2">
+            <div className="flex flex-col min-w-0">
+              <span className="text-(length:--text-sm)">
+                Import Logos notes
+              </span>
+              <span className="panel__muted">
+                Import Logos Bible Study .txt or HTML exports — one file per
+                book, or select several at once. The HTML export also carries
+                over highlighted passages. Already-imported passages are
+                skipped.
+              </span>
+            </div>
+            <button
+              type="button"
+              disabled={importingLogos}
+              className="shrink-0 inline-flex items-center h-7 px-3 rounded-(--radius-sm) bg-accent-tint text-ink text-(length:--text-sm) hover:bg-accent-tint-strong disabled:opacity-50 disabled:cursor-default transition-colors duration-(--dur-fast) ease-(--ease-standard)"
+              onClick={importLogos}
+            >
+              {importingLogos ? "Importing…" : "Import Logos notes…"}
+            </button>
+          </div>
+          {logosError && (
+            <p className="mt-1 text-danger text-(length:--text-xs)">
+              {logosError}
+            </p>
+          )}
+          {logosSummary && (
+            <>
+              <ul className="mt-1 text-(length:--text-xs) text-muted">
+                {logosSummary.files.map((f) => (
+                  <li key={f.file}>
+                    {f.file} — {f.imported} imported, {f.skipped} skipped
+                    {f.warnings.length > 0 && (
+                      <ul className="ml-3 list-disc list-inside panel__muted">
+                        {f.warnings.map((w, i) => (
+                          <li key={i}>{w}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              {lastImportedIds && lastImportedIds.length > 0 && (
+                <button
+                  type="button"
+                  className="mt-2 inline-flex items-center h-7 px-3 rounded-(--radius-sm) bg-danger-tint text-danger text-(length:--text-sm) hover:opacity-80 transition-opacity duration-(--dur-fast) ease-(--ease-standard)"
+                  onClick={undoLogosImport}
+                >
+                  Undo import ({lastImportedIds.length} note
+                  {lastImportedIds.length === 1 ? "" : "s"})
+                </button>
+              )}
+            </>
+          )}
         </section>
 
         <section className="[&+&]:mt-6">

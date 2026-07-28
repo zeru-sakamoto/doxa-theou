@@ -43,6 +43,13 @@ interface NotesCtx {
     patch: Partial<Note> | ((n: Note) => Partial<Note>),
   ) => void;
   deleteNote: (id: string) => void;
+  refreshNotes: () => Promise<void>;
+  // One-shot undo for the Logos import in SettingsPanel: holds the ids of
+  // notes created by the most recent import (in memory only — lost on app
+  // restart, which is the point) and lets that batch be deleted in one go.
+  lastImportedIds: string[] | null;
+  recordImport: (ids: string[]) => void;
+  revertImport: () => void;
 }
 
 const Ctx = createContext<NotesCtx | null>(null);
@@ -78,6 +85,21 @@ export function NotesProvider({ children }: { children: ReactNode }) {
       }, SAVE_DEBOUNCE_MS),
     );
   }, []);
+
+  // Re-reads every note from disk — used at startup, whenever the folder
+  // changes, and after actions (like a Logos import) that write files
+  // directly through Rust rather than through this store's own CRUD.
+  const refreshNotes = useCallback(async () => {
+    setLoading(true);
+    try {
+      applyNotes(await apiLoad(folderRef.current));
+      setError(null);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [applyNotes]);
 
   // Load at startup and whenever the folder changes.
   useEffect(() => {
@@ -145,22 +167,41 @@ export function NotesProvider({ children }: { children: ReactNode }) {
     [applyNotes],
   );
 
+  const [lastImportedIds, setLastImportedIds] = useState<string[] | null>(null);
+  const recordImport = useCallback((ids: string[]) => {
+    setLastImportedIds(ids.length > 0 ? ids : null);
+  }, []);
+  const revertImport = useCallback(() => {
+    for (const id of lastImportedIds ?? []) deleteNote(id);
+    setLastImportedIds(null);
+  }, [lastImportedIds, deleteNote]);
+
   const anchorIndex = useMemo<AnchorIndex>(() => {
     const map: AnchorIndex = new Map();
+    const add = (key: string, hit: AnchorHighlight) => {
+      const list = map.get(key);
+      if (list) list.push(hit);
+      else map.set(key, [hit]);
+    };
     for (const note of notes) {
       for (const raw of note.anchors) {
         const ref = parseAnchor(raw, books);
         if (!ref) continue;
-        const key = `${ref.bookId}:${ref.chapter}`;
-        const list = map.get(key);
-        const hit: AnchorHighlight = {
-          noteId: note.id,
-          color: note.color,
-          verseStart: ref.verseStart,
-          verseEnd: ref.verseEnd,
-        };
-        if (list) list.push(hit);
-        else map.set(key, [hit]);
+        // A cross-chapter anchor (chapterStart !== chapterEnd) highlights in
+        // every chapter it spans: verseStart only bounds chapterStart,
+        // verseEnd only chapterEnd, chapters strictly between are shown
+        // fully highlighted (mirrors notes_for_chapter in src-tauri/notes.rs).
+        for (let ch = ref.chapterStart; ch <= ref.chapterEnd; ch++) {
+          const verseStart =
+            ch === ref.chapterStart ? ref.verseStart : undefined;
+          const verseEnd = ch === ref.chapterEnd ? ref.verseEnd : undefined;
+          add(`${ref.bookId}:${ch}`, {
+            noteId: note.id,
+            color: note.color,
+            verseStart,
+            verseEnd,
+          });
+        }
       }
     }
     return map;
@@ -175,8 +216,24 @@ export function NotesProvider({ children }: { children: ReactNode }) {
       createNote,
       updateNote,
       deleteNote,
+      refreshNotes,
+      lastImportedIds,
+      recordImport,
+      revertImport,
     }),
-    [notes, loading, error, anchorIndex, createNote, updateNote, deleteNote],
+    [
+      notes,
+      loading,
+      error,
+      anchorIndex,
+      createNote,
+      updateNote,
+      deleteNote,
+      refreshNotes,
+      lastImportedIds,
+      recordImport,
+      revertImport,
+    ],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

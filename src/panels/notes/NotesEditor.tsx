@@ -37,7 +37,7 @@ export function NotesEditor({
   const ws = useWorkspace();
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
+      StarterKit.configure({ heading: { levels: [1, 2, 3, 4] } }),
       Highlight.configure({ multicolor: true }),
       TaskList,
       TaskItem.configure({ nested: true }),

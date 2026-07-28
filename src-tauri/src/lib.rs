@@ -1,4 +1,5 @@
 mod db;
+mod logos_import;
 mod notes;
 
 use rusqlite::{Connection, OpenFlags};
@@ -189,6 +190,24 @@ fn notes_for_chapter(
     notes::notes_for_chapter(&conn, book_id, chapter).map_err(|e| e.to_string())
 }
 
+/// Import one or more Logos Bible Study `.txt` note exports (see
+/// logos_import.rs), skipping any passage group that's already been imported.
+#[tauri::command]
+fn import_logos_notes(
+    bible: State<'_, Bible>,
+    state: State<'_, Notes>,
+    app: AppHandle,
+    folder: Option<String>,
+    paths: Vec<String>,
+    now: String,
+    color: Option<String>,
+) -> Result<logos_import::ImportSummary, String> {
+    let books = book_map(&bible)?;
+    let dir = notes_folder(&app, folder)?;
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    logos_import::import_files(&conn, &books, &dir, &paths, &now, color)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -218,7 +237,8 @@ pub fn run() {
             load_notes,
             save_note,
             delete_note,
-            notes_for_chapter
+            notes_for_chapter,
+            import_logos_notes
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

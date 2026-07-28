@@ -64,6 +64,9 @@ export function NotesPanel({ api, params }: IDockviewPanelProps<NotesParams>) {
   const [query, setQuery] = useState("");
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
   const [bookIds, setBookIds] = useState<Set<number>>(new Set());
+  const [selectedNotebooks, setSelectedNotebooks] = useState<Set<string>>(
+    new Set(),
+  );
 
   const selectedNote = notes.find((n) => n.id === selectedId) ?? null;
 
@@ -145,9 +148,18 @@ export function NotesPanel({ api, params }: IDockviewPanelProps<NotesParams>) {
     });
   }
 
+  function toggleNotebook(notebook: string) {
+    setSelectedNotebooks((prev) => {
+      const next = new Set(prev);
+      next.has(notebook) ? next.delete(notebook) : next.add(notebook);
+      return next;
+    });
+  }
+
   function clearFilters() {
     setSelectedTags(new Set());
     setBookIds(new Set());
+    setSelectedNotebooks(new Set());
   }
 
   const allTags = useMemo(() => {
@@ -176,6 +188,8 @@ export function NotesPanel({ api, params }: IDockviewPanelProps<NotesParams>) {
         }
         if (selectedTags.size > 0 && !n.tags.some((t) => selectedTags.has(t)))
           return false;
+        if (selectedNotebooks.size > 0 && !selectedNotebooks.has(n.notebook))
+          return false;
         if (
           selectedBooks.length > 0 &&
           !n.anchors.some((a) =>
@@ -188,7 +202,7 @@ export function NotesPanel({ api, params }: IDockviewPanelProps<NotesParams>) {
         return true;
       })
       .sort((a, b) => (a.modified < b.modified ? 1 : -1));
-  }, [notes, query, selectedTags, bookIds, ws.books]);
+  }, [notes, query, selectedTags, bookIds, selectedNotebooks, ws.books]);
 
   return (
     <div className="panel">
@@ -220,6 +234,9 @@ export function NotesPanel({ api, params }: IDockviewPanelProps<NotesParams>) {
           books={ws.books}
           selectedBookIds={bookIds}
           onToggleBook={toggleBook}
+          notebooks={allNotebooks}
+          selectedNotebooks={selectedNotebooks}
+          onToggleNotebook={toggleNotebook}
           onClear={clearFilters}
         />
         {!selectedNote && (

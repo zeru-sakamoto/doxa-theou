@@ -139,11 +139,16 @@ function AnchorRow({
       return;
     }
     let cancelled = false;
-    getChapter(parsed.bookId, parsed.chapter, ws.activeTranslation)
+    getChapter(parsed.bookId, parsed.chapterStart, ws.activeTranslation)
       .then((verses) => {
         if (cancelled) return;
         const start = parsed.verseStart ?? 1;
-        const end = parsed.verseEnd ?? start;
+        // A cross-chapter anchor's verseEnd belongs to chapterEnd, not this
+        // (chapterStart) chapter — preview to the end of the chapter instead.
+        const end =
+          parsed.chapterStart === parsed.chapterEnd
+            ? (parsed.verseEnd ?? start)
+            : Number.MAX_SAFE_INTEGER;
         setPreview(
           verses
             .filter((v) => v.verse >= start && v.verse <= end)
@@ -161,10 +166,10 @@ function AnchorRow({
 
   function navigate() {
     if (!parsed) return;
-    dock.gotoReference(parsed.bookId, parsed.chapter, parsed.verseStart);
+    dock.gotoReference(parsed.bookId, parsed.chapterStart, parsed.verseStart);
     ws.setActiveReference({
       bookId: parsed.bookId,
-      chapter: parsed.chapter,
+      chapter: parsed.chapterStart,
       verse: parsed.verseStart,
     });
   }

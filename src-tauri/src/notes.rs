@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS note_anchors (
   raw         TEXT NOT NULL,
   book_id     INTEGER,
   chapter     INTEGER,
+  chapter_end INTEGER,
   verse_start INTEGER,
   verse_end   INTEGER
 );
@@ -73,6 +74,10 @@ CREATE INDEX IF NOT EXISTS idx_note_tags_note ON note_tags(note_id);
 pub fn open(path: &Path) -> rusqlite::Result<Connection> {
     let conn = Connection::open(path)?;
     conn.execute_batch(SCHEMA)?;
+    // `chapter_end` was added after some installs already had this table;
+    // IF NOT EXISTS won't retrofit a column, so add it if missing. The
+    // table is a fully-rebuilt cache (see load_notes), so no data migration.
+    let _ = conn.execute("ALTER TABLE note_anchors ADD COLUMN chapter_end INTEGER", []);
     Ok(conn)
 }
 
@@ -173,33 +178,47 @@ pub fn serialize_note(note: &Note) -> String {
     s
 }
 
-// "Chapter[:Verse[-Verse]]" -> (chapter, verse_start, verse_end). A bare
-// chapter has no verse bounds (whole-chapter anchor); a single verse has
-// start == end. Matches parseAnchor in the TS side.
-fn parse_ref(rest: &str) -> Option<(i64, Option<i64>, Option<i64>)> {
+// "Chapter[:Verse[-Verse]]" -> (chapter_start, verse_start, chapter_end,
+// verse_end). A bare chapter has no verse bounds (whole-chapter anchor); a
+// single verse has start == end. Also accepts a cross-chapter span
+// "Chapter:Verse-Chapter:Verse" (e.g. "9:30-10:4"), where chapter_start !=
+// chapter_end. Matches parseAnchor in the TS side.
+fn parse_ref(rest: &str) -> Option<(i64, Option<i64>, i64, Option<i64>)> {
+    // Cross-chapter span: both sides of the dash have their own "chapter:verse".
+    if let Some((left, right)) = rest.split_once('-') {
+        if let (Some((c1, v1)), Some((c2, v2))) = (left.split_once(':'), right.split_once(':')) {
+            let c1: i64 = c1.trim().parse().ok()?;
+            let v1: i64 = v1.trim().parse().ok()?;
+            let c2: i64 = c2.trim().parse().ok()?;
+            let v2: i64 = v2.trim().parse().ok()?;
+            return Some((c1, Some(v1), c2, Some(v2)));
+        }
+    }
+
     let (chap_str, verse_part) = match rest.split_once(':') {
         Some((c, v)) => (c, Some(v)),
         None => (rest, None),
     };
     let chapter: i64 = chap_str.trim().parse().ok()?;
     match verse_part {
-        None => Some((chapter, None, None)),
+        None => Some((chapter, None, chapter, None)),
         Some(v) => match v.split_once('-') {
-            Some((a, b)) => Some((chapter, Some(a.trim().parse().ok()?), Some(b.trim().parse().ok()?))),
+            Some((a, b)) => Some((chapter, Some(a.trim().parse().ok()?), chapter, Some(b.trim().parse().ok()?))),
             None => {
                 let n: i64 = v.trim().parse().ok()?;
-                Some((chapter, Some(n), Some(n)))
+                Some((chapter, Some(n), chapter, Some(n)))
             }
         },
     }
 }
 
-/// "Book Chapter[:Verse[-Verse]]" -> (book_id, chapter, verse_start, verse_end).
-pub fn resolve_anchor(anchor: &str, books: &[(String, i64)]) -> Option<(i64, i64, Option<i64>, Option<i64>)> {
+/// "Book Chapter[:Verse[-Verse]]" (optionally spanning chapters) ->
+/// (book_id, chapter_start, verse_start, chapter_end, verse_end).
+pub fn resolve_anchor(anchor: &str, books: &[(String, i64)]) -> Option<(i64, i64, Option<i64>, i64, Option<i64>)> {
     let lower = anchor.to_lowercase();
     let (name, id) = books.iter().find(|(n, _)| lower.starts_with(&(n.clone() + " ")))?;
-    let (chapter, vs, ve) = parse_ref(anchor[name.len()..].trim())?;
-    Some((*id, chapter, vs, ve))
+    let (c1, vs, c2, ve) = parse_ref(anchor[name.len()..].trim())?;
+    Some((*id, c1, vs, c2, ve))
 }
 
 // Keep the id filename-safe (it crosses a trust boundary from the frontend).
@@ -226,13 +245,13 @@ fn upsert_note(conn: &Connection, path: &Path, note: &Note, books: &[(String, i6
         conn.execute("INSERT INTO note_tags (note_id,tag) VALUES (?1,?2)", params![note.id, tag])?;
     }
     for raw in &note.anchors {
-        let (b, c, vs, ve) = match resolve_anchor(raw, books) {
-            Some((b, c, vs, ve)) => (Some(b), Some(c), vs, ve),
-            None => (None, None, None, None),
+        let (b, c1, vs, c2, ve) = match resolve_anchor(raw, books) {
+            Some((b, c1, vs, c2, ve)) => (Some(b), Some(c1), vs, Some(c2), ve),
+            None => (None, None, None, None, None),
         };
         conn.execute(
-            "INSERT INTO note_anchors (note_id,raw,book_id,chapter,verse_start,verse_end) VALUES (?1,?2,?3,?4,?5,?6)",
-            params![note.id, raw, b, c, vs, ve],
+            "INSERT INTO note_anchors (note_id,raw,book_id,chapter,chapter_end,verse_start,verse_end) VALUES (?1,?2,?3,?4,?5,?6,?7)",
+            params![note.id, raw, b, c1, c2, vs, ve],
         )?;
     }
     Ok(())
@@ -286,20 +305,38 @@ pub fn delete_note(conn: &Connection, folder: &Path, id: &str) -> Result<(), Str
     Ok(())
 }
 
-/// Anchors landing in a given chapter — the index's read side.
+/// Anchors landing in a given chapter — the index's read side. Also matches
+/// cross-chapter anchors (chapter_end > chapter) that pass through `chapter`
+/// without starting or ending there; verse bounds are clamped to whatever
+/// applies within *this* chapter (the note's own verse_start only bounds its
+/// first chapter, verse_end only its last — chapters strictly in between are
+/// shown fully highlighted).
 pub fn notes_for_chapter(conn: &Connection, book_id: i64, chapter: i64) -> rusqlite::Result<Vec<ChapterNote>> {
     conn.prepare(
-        "SELECT a.note_id, n.title, n.color, a.verse_start, a.verse_end \
+        "SELECT a.note_id, n.title, n.color, a.chapter, a.verse_start, a.chapter_end, a.verse_end \
          FROM note_anchors a JOIN notes n ON n.id = a.note_id \
-         WHERE a.book_id = ?1 AND a.chapter = ?2",
+         WHERE a.book_id = ?1 AND ?2 BETWEEN a.chapter AND COALESCE(a.chapter_end, a.chapter)",
     )?
     .query_map(params![book_id, chapter], |r| {
+        let chapter_start: i64 = r.get(3)?;
+        let verse_start: Option<i64> = r.get(4)?;
+        let chapter_end: i64 = r.get::<_, Option<i64>>(5)?.unwrap_or(chapter_start);
+        let verse_end: Option<i64> = r.get(6)?;
+        let (verse_start, verse_end) = if chapter_start == chapter_end {
+            (verse_start, verse_end)
+        } else if chapter == chapter_start {
+            (verse_start, None)
+        } else if chapter == chapter_end {
+            (None, verse_end)
+        } else {
+            (None, None)
+        };
         Ok(ChapterNote {
             note_id: r.get(0)?,
             title: r.get(1)?,
             color: r.get(2)?,
-            verse_start: r.get(3)?,
-            verse_end: r.get(4)?,
+            verse_start,
+            verse_end,
         })
     })?
     .collect()
@@ -321,10 +358,16 @@ mod tests {
         assert_eq!(note.body, "Body text.");
 
         let books = vec![("psalms".to_string(), 19), ("john".to_string(), 43)];
-        assert_eq!(resolve_anchor("John 1:1", &books), Some((43, 1, Some(1), Some(1))));
-        assert_eq!(resolve_anchor("Psalms 23:1-4", &books), Some((19, 23, Some(1), Some(4))));
-        assert_eq!(resolve_anchor("John 1", &books), Some((43, 1, None, None)));
+        assert_eq!(resolve_anchor("John 1:1", &books), Some((43, 1, Some(1), 1, Some(1))));
+        assert_eq!(resolve_anchor("Psalms 23:1-4", &books), Some((19, 23, Some(1), 23, Some(4))));
+        assert_eq!(resolve_anchor("John 1", &books), Some((43, 1, None, 1, None)));
         assert_eq!(resolve_anchor("Nope 1:1", &books), None);
+        // Cross-chapter span: "Romans 9:30-10:4" -> starts ch.9 v.30, ends ch.10 v.4.
+        let romans = vec![("romans".to_string(), 45)];
+        assert_eq!(
+            resolve_anchor("Romans 9:30-10:4", &romans),
+            Some((45, 9, Some(30), 10, Some(4)))
+        );
     }
 
     #[test]
@@ -368,6 +411,38 @@ mod tests {
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].verse_start, Some(1));
         assert_eq!(hits[0].color.as_deref(), Some("var(--highlight-indigo)"));
+    }
+
+    #[test]
+    fn cross_chapter_anchor_highlights_every_chapter_it_spans() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(SCHEMA).unwrap();
+        let books = vec![("romans".to_string(), 45)];
+        let note = Note {
+            id: "span".into(),
+            title: "Span".into(),
+            tags: vec![],
+            anchors: vec!["Romans 9:30-10:4".into()],
+            notebook: String::new(),
+            color: None,
+            created: String::new(),
+            modified: String::new(),
+            body: String::new(),
+        };
+        upsert_note(&conn, Path::new("span.md"), &note, &books).unwrap();
+
+        let ch9 = notes_for_chapter(&conn, 45, 9).unwrap();
+        assert_eq!(ch9.len(), 1);
+        assert_eq!(ch9[0].verse_start, Some(30));
+        assert_eq!(ch9[0].verse_end, None); // to the end of chapter 9
+
+        let ch10 = notes_for_chapter(&conn, 45, 10).unwrap();
+        assert_eq!(ch10.len(), 1);
+        assert_eq!(ch10[0].verse_start, None); // from the start of chapter 10
+        assert_eq!(ch10[0].verse_end, Some(4));
+
+        assert!(notes_for_chapter(&conn, 45, 8).unwrap().is_empty());
+        assert!(notes_for_chapter(&conn, 45, 11).unwrap().is_empty());
     }
 
     // Full disk round-trip against the real bible.sqlite (skips if absent, like

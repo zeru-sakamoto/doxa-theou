@@ -16,6 +16,9 @@ interface Props {
   books: Book[];
   selectedBookIds: Set<number>;
   onToggleBook: (id: number) => void;
+  notebooks: string[];
+  selectedNotebooks: Set<string>;
+  onToggleNotebook: (notebook: string) => void;
   onClear: () => void;
 }
 
@@ -26,10 +29,13 @@ export function NotesFilterMenu({
   books,
   selectedBookIds,
   onToggleBook,
+  notebooks,
+  selectedNotebooks,
+  onToggleNotebook,
   onClear,
 }: Props) {
   const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<"tags" | "books">("tags");
+  const [mode, setMode] = useState<"tags" | "books" | "notebooks">("tags");
   const ref = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const reduce = useReducedMotion();
@@ -50,7 +56,10 @@ export function NotesFilterMenu({
     };
   }, [open]);
 
-  const active = selectedTags.size > 0 || selectedBookIds.size > 0;
+  const active =
+    selectedTags.size > 0 ||
+    selectedBookIds.size > 0 ||
+    selectedNotebooks.size > 0;
 
   return (
     <div className="menu" ref={ref}>
@@ -90,6 +99,15 @@ export function NotesFilterMenu({
                 >
                   Books
                 </button>
+                <button
+                  type="button"
+                  className={
+                    "seg__btn" + (mode === "notebooks" ? " is-on" : "")
+                  }
+                  onClick={() => setMode("notebooks")}
+                >
+                  Notebooks
+                </button>
               </div>
               <button
                 type="button"
@@ -124,6 +142,39 @@ export function NotesFilterMenu({
                     );
                   })
                 )}
+              </div>
+            ) : mode === "notebooks" ? (
+              <div className="flex flex-col gap-1 max-h-[260px] overflow-auto">
+                <button
+                  type="button"
+                  className={
+                    "w-full text-left truncate py-[3px] px-2 border rounded-(--radius-sm) font-(family-name:--font-mono) text-(length:--text-xs)" +
+                    (selectedNotebooks.has("")
+                      ? " bg-accent border-accent text-on-accent"
+                      : " bg-transparent border-border text-muted hover:border-accent hover:text-accent hover:bg-accent-tint")
+                  }
+                  onClick={() => onToggleNotebook("")}
+                >
+                  Uncategorized
+                </button>
+                {notebooks.map((nb) => {
+                  const active = selectedNotebooks.has(nb);
+                  return (
+                    <button
+                      key={nb}
+                      type="button"
+                      className={
+                        "w-full text-left truncate py-[3px] px-2 border rounded-(--radius-sm) font-(family-name:--font-mono) text-(length:--text-xs)" +
+                        (active
+                          ? " bg-accent border-accent text-on-accent"
+                          : " bg-transparent border-border text-muted hover:border-accent hover:text-accent hover:bg-accent-tint")
+                      }
+                      onClick={() => onToggleNotebook(nb)}
+                    >
+                      {nb}
+                    </button>
+                  );
+                })}
               </div>
             ) : (
               <div className="max-h-[260px] overflow-auto">

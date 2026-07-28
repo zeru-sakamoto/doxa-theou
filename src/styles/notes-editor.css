@@ -7,7 +7,7 @@
    ==========================================================================*/
 
 .tiptap {
-  font-family: var(--font-sans);
+  font-family: var(--font-serif);
   font-size: var(--text-read);
   line-height: var(--lh-read);
   color: var(--text);

@@ -28,6 +28,7 @@ const HEADING_LABEL: Record<number, string> = {
   1: "H1",
   2: "H2",
   3: "H3",
+  4: "H4",
 };
 
 export function NotesEditorToolbar({
@@ -56,7 +57,8 @@ export function NotesEditorToolbar({
       taskList: editor?.isActive("taskList") ?? false,
       blockquote: editor?.isActive("blockquote") ?? false,
       headingLevel:
-        [1, 2, 3].find((l) => editor?.isActive("heading", { level: l })) ?? 0,
+        [1, 2, 3, 4].find((l) => editor?.isActive("heading", { level: l })) ??
+        0,
     }),
   });
 
@@ -102,6 +104,10 @@ export function NotesEditorToolbar({
     {
       label: "Heading 3",
       onSelect: () => editor.chain().focus().setHeading({ level: 3 }).run(),
+    },
+    {
+      label: "Heading 4",
+      onSelect: () => editor.chain().focus().setHeading({ level: 4 }).run(),
     },
   ];
 

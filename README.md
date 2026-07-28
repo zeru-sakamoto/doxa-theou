@@ -8,7 +8,8 @@ The Reader panel shows one chapter at a time (no continuous scroll); you move
 between chapters via the TOC drawer, ⌘K, a note anchor, or the chapter up/down
 buttons, which roll across book boundaries.
 
-The Notes panel has a searchable, filterable note list (by tag or by book).
+The Notes panel has a searchable, filterable note list (by tag, book, or
+notebook).
 Opening a Notes tab with no note selected shows that list at full panel
 width — as cards or full-width bars, a preference toggled in the header —
 instead of a blank editor. Notes are Markdown files with frontmatter, edited

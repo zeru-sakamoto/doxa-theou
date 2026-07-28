@@ -81,6 +81,7 @@ function stripMarkdown(text: string): string {
     .split("\n")
     .map((l) => l.replace(/^\s*(#{1,6}|[-*+>]|`{1,3})\s*/, ""))
     .join(" ")
+    .replace(/==/g, "")
     .replace(/[*_`]/g, "")
     .replace(/\s+/g, " ")
     .trim();
@@ -95,12 +96,16 @@ export function notePreview(note: Note): string {
 
 // A resolved anchor: "BookName Chapter[:Verse[-Verse]]" -> ids. A bare chapter
 // leaves verse bounds undefined (whole-chapter anchor); a single verse has
-// verseStart === verseEnd. Lifted out of NotesAnchorBar so the Reader's
-// highlight index and the anchor rows share one parser (mirrors the Rust
-// resolve_anchor used to build the SQLite index).
+// verseStart === verseEnd. Also accepts a cross-chapter span "Chapter:Verse-
+// Chapter:Verse" (e.g. "Romans 9:30-10:4"), where chapterStart !== chapterEnd
+// — verseStart bounds only chapterStart, verseEnd only chapterEnd; chapters
+// in between are fully highlighted (see state/notes.tsx's anchorIndex).
+// Lifted out of NotesAnchorBar so the Reader's highlight index and the
+// anchor rows share one parser (mirrors Rust's resolve_anchor).
 export interface AnchorRef {
   bookId: number;
-  chapter: number;
+  chapterStart: number;
+  chapterEnd: number;
   verseStart?: number;
   verseEnd?: number;
 }
@@ -111,11 +116,25 @@ export function parseAnchor(anchor: string, books: Book[]): AnchorRef | null {
   );
   if (!book) return null;
   const rest = anchor.slice(book.name.length).trim();
+
+  const span = rest.match(/^(\d+):(\d+)-(\d+):(\d+)$/);
+  if (span) {
+    return {
+      bookId: book.id,
+      chapterStart: parseInt(span[1], 10),
+      verseStart: parseInt(span[2], 10),
+      chapterEnd: parseInt(span[3], 10),
+      verseEnd: parseInt(span[4], 10),
+    };
+  }
+
   const m = rest.match(/^(\d+)(?::(\d+)(?:-(\d+))?)?$/);
   if (!m) return null;
+  const chapter = parseInt(m[1], 10);
   return {
     bookId: book.id,
-    chapter: parseInt(m[1], 10),
+    chapterStart: chapter,
+    chapterEnd: chapter,
     verseStart: m[2] ? parseInt(m[2], 10) : undefined,
     verseEnd: m[3] ? parseInt(m[3], 10) : m[2] ? parseInt(m[2], 10) : undefined,
   };

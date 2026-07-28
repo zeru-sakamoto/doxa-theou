@@ -19,6 +19,9 @@ site-content
 *.sqlite
 /db/
 
+# Notes Data
+logos-to-doxa-md/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

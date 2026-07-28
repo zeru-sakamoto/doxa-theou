@@ -1,6 +1,6 @@
 [package]
 name = "doxa-theou"
-version = "0.1.1"
+version = "0.1.2"
 description = "Bible Study App"
 authors = ["Zeru Sakamoto"]
 edition = "2021"
@@ -25,6 +25,16 @@ serde_json = "1"
 # bundled = compile SQLite in-tree (FTS5 included), no system libsqlite dependency.
 rusqlite = { version = "0.32", features = ["bundled"] }
 tauri-plugin-dialog = "2.7.2"
+# random ids for imported notes (v4 = random, matches frontend's crypto.randomUUID()).
+uuid = { version = "1", features = ["v4"] }
+# HTML parsing for the Logos "Copy Bible Text" HTML export (preserves inline
+# highlight spans that the plain .txt export drops). html5ever/selectors/
+# tendril/cssparser are already pulled in transitively by tauri's webview, so
+# this only adds the thin ego-tree wrapper on top.
+scraper = "0.20"
+# scraper's underlying DOM tree type — needed to name `NodeRef` explicitly
+# when walking child nodes by hand (scraper doesn't re-export it).
+ego-tree = "0.6"
 
 # Lean release build for low-end devices: smaller binary + memory footprint.
 # opt-level "s" (size) over "3" — this app's hot path is SQLite, not CPU math.
