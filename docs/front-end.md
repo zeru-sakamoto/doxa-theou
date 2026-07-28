@@ -27,11 +27,11 @@ actually used has to be imported explicitly — e.g. `400-italic` for a plain
 italic mark, `600-italic` for bold+italic or an italicized semibold heading —
 or that combination silently renders as whichever face the browser falls back
 to (thinner/upright) instead of erroring. The notes editor's body text
-(`.tiptap` in `notes-editor.css`) uses `--font-serif` (Newsreader), matching
-the Reader panel's verse text at the same `--text-read` size — it previously
-used `--font-sans`, which rendered visually larger than the Reader at an
-identical font-size due to IBM Plex Sans' bigger x-height, so the two never
-looked matched even though the token was shared.
+(`.tiptap` in `notes-editor.css`) uses `--font-sans` (IBM Plex Sans) — regular
+note-taking prose reads as UI text, not Scripture. `.tiptap blockquote`
+overrides back to `--font-serif` (Newsreader), so a pasted verse quote (e.g.
+via the Reader's Copy Blockquote) still reads visually like the Reader's own
+verse text, even inside sans-serif note prose.
 
 ### Design workflow (required for any UI work)
 
@@ -143,11 +143,13 @@ src/
     HomePanel.tsx          landing view: quick actions + recently-edited notes; also the dockview watermark
     ReaderPanel.tsx        scripture reader (one translation per panel), shows one chapter at a time
     reader/ChapterView.tsx renders a chapter's verses split into heading segments, rows/paragraph flow modes
+    reader/SelectionToolbar.tsx  floating Copy/Copy Blockquote menu shown on verse-text selection
+    reader/selectionCopy.ts      formats a selected verse span into plain-text or blockquote Markdown
     reader/TocDrawer.tsx   in-panel book/chapter navigator
     NotesPanel.tsx         header (list/search/filter/display-toggle/color/⋯) + editor host; no note selected → full-width list instead of the editor
     notes/NotesDrawer.tsx  note list, two variants: "sidebar" (collapsible column beside an open note) and "inline" (full-width, no note open); Ctrl/Cmd-click opens a note in a new background tab
     notes/NotesCardGrid.tsx    full-width card-grid layout for the same note list, alternative to NotesDrawer's "inline" bars variant
-    notes/NoteRowContent.tsx   one note's summary (color dot, title-or-preview, tag pills, anchors) shared by the sidebar, inline bars, and card grid
+    notes/NoteRowContent.tsx   one note's summary (color dot, title-or-preview, tag pills, anchors, last-modified date/time) shared by the sidebar, inline bars, and card grid
     notes/NotesFilterMenu.tsx  tag (text) / book (multi-select) / notebook (multi-select, incl. "Uncategorized") filter popover
     notes/NotesColorMenu.tsx   per-note color swatch picker (header, left of ⋯)
     notes/NotebookMenu.tsx     per-note notebook picker (header)
@@ -156,7 +158,7 @@ src/
     notes/NotesAnchorBar.tsx   verse-anchor rows + composer (autocomplete, keyboard nav, chapter/verse validation)
     notes/notes.ts         sample-notes loader/parser, shared highlight palette, notePreview()
     SearchPanel.tsx        Scripture (FTS) + Notes (client-side) result groups
-    SettingsPanel.tsx      theme toggle, default translation, Bible-database import, highlight palette, notes folder, notes-panel placement (Active/Left/Right)
+    SettingsPanel.tsx      theme toggle, default translation, Bible-database import, Logos-notes import (with undo), highlight palette, notes folder, notes-panel placement (Active/Left/Right)
 ```
 
 ---
@@ -270,13 +272,13 @@ rather than snapping straight in, and honors `prefers-reduced-motion`.
 
 Registered in `dock.tsx` under a `components` map (`id → component`).
 
-| Panel        | Wired to backend                       | Notes                                                                                                                                                                                                                                                                                            |
-| ------------ | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Home**     | —                                      | Landing view: quick actions (start reading, open Notes/Search/Settings) + a recently-edited-notes list. The dockview watermark shown whenever the dock is empty — not an openable panel/tab.                                                                                                     |
-| **Reader**   | `get_chapter`, `list_books`            | One translation, chosen at open time ("version-dedicated").                                                                                                                                                                                                                                      |
-| **Search**   | `search` (FTS5 / bm25)                 | **Scripture** group (FTS5/bm25 via `search`) + **Notes** group (client-side substring match over the in-memory notes — title/tags/body); note hits open in the Notes panel. The `.panel__scroll` results list scrolls via `workspace/useArrowScroll.ts` while Search is dockview's active panel. |
-| **Notes**    | `load_notes`/`save_note`/`delete_note` | Header, list, and a real Tiptap editor (toolbar, anchors, optional title); notes persist to disk via `NotesProvider` (`src/state/notes.tsx`), debounced per-note.                                                                                                                                |
-| **Settings** | `list_translations`, `import_bible_db` | Theme toggle, default translation, Bible-database import (pick a prebuilt `bible.sqlite`), shared highlight palette, notes folder picker, notes-panel placement (Active/Left/Right).                                                                                                             |
+| Panel        | Wired to backend                                             | Notes                                                                                                                                                                                                                                                                                            |
+| ------------ | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Home**     | —                                                            | Landing view: quick actions (start reading, open Notes/Search/Settings) + a recently-edited-notes list. The dockview watermark shown whenever the dock is empty — not an openable panel/tab.                                                                                                     |
+| **Reader**   | `get_chapter`, `list_books`                                  | One translation, chosen at open time ("version-dedicated").                                                                                                                                                                                                                                      |
+| **Search**   | `search` (FTS5 / bm25)                                       | **Scripture** group (FTS5/bm25 via `search`) + **Notes** group (client-side substring match over the in-memory notes — title/tags/body); note hits open in the Notes panel. The `.panel__scroll` results list scrolls via `workspace/useArrowScroll.ts` while Search is dockview's active panel. |
+| **Notes**    | `load_notes`/`save_note`/`delete_note`                       | Header, list, and a real Tiptap editor (toolbar, anchors, optional title); notes persist to disk via `NotesProvider` (`src/state/notes.tsx`), debounced per-note.                                                                                                                                |
+| **Settings** | `list_translations`, `import_bible_db`, `import_logos_notes` | Theme toggle, default translation, Bible-database import (pick a prebuilt `bible.sqlite`), Logos-notes import (one or more `.txt`/HTML exports → notes, dedupe + per-import undo), shared highlight palette, notes folder picker, notes-panel placement (Active/Left/Right).                     |
 
 **Home** (`HomePanel.tsx`). The empty-dock screen — passed only as
 dockview's `watermarkComponent` (auto-shown whenever the dock has zero
@@ -333,6 +335,22 @@ stays visible instead of being scrolled just out of frame. These step whole
 chapters, not individual verses — an initial verse-by-verse version was
 narrowed to chapters, which is what was actually wanted.
 
+**Selection toolbar** (`reader/SelectionToolbar.tsx`). Selecting verse text
+inside the chapter container and releasing the mouse shows a small floating
+menu ("Copy" / "Copy Blockquote" / "Copy Reference") positioned near the
+cursor — it does not track live while dragging, only on `mouseup`. It always
+copies the **full text of every verse the selection touches** — found via
+`Range.intersectsNode` against each verse's `[data-verse]` element, not the
+literal substring under the cursor — since a chapter is always one
+book/chapter, that span is just the min/max touched verse number.
+`reader/selectionCopy.ts` formats the result: **Copy** is `**Book C:V-V**` +
+one `V text` line per verse; **Copy Blockquote** is `## Book C:V–V` (en dash)
+
+- one `> **\`V\`** text`blockquote line per verse; **Copy Reference** is
+just`Book C:V-V`. Dismissal is entirely selection-driven — a `mousedown`outside the toolbar hides it, and it only reappears on the next`mouseup`if`selectionchange`actually fired during that gesture (otherwise an unrelated
+click would re-show it for a stale, untouched browser selection) — plus`Escape`. Copies via `navigator.clipboard.writeText`, no Tauri clipboard
+  plugin needed.
+
 **TOC drawer** (`reader/TocDrawer.tsx`). Slides in over the Reader body
 (spring). Books are listed by testament as accordions; expanding a book reveals a
 grid of chapter-number chips; clicking a chip navigates and closes the drawer.
@@ -382,8 +400,9 @@ tile layout — "Cards"), per the header's display toggle. The choice is a
 **global** preference (`ws.notesListDisplay`, persisted to localStorage like
 `notesSplitSide`/`notesLastColor`) — every Notes tab shares it. Both layouts,
 plus the sidebar, render a note's summary through the shared
-`notes/NoteRowContent.tsx` (color dot, title-or-preview, tag pills, anchors)
-so there's one definition of what a note "row" looks like. Selecting a note
+`notes/NoteRowContent.tsx` (color dot, title-or-preview, tag pills, anchors,
+last-modified date/time) so there's one definition of what a note "row" looks
+like. Selecting a note
 switches back to the editor and restores the header to its normal
 note-open state (hamburger back, display toggle gone — the 244px sidebar
 always uses bars-style rows regardless of the preference, so a toggle with
@@ -426,6 +445,15 @@ resize while open.
   code, and link buttons. Buttons are grouped by divider; the bar wraps by
   whole group (never mid-cluster) when the panel narrows, e.g. with the note
   list open.
+- **Markdown paste**: `useEditor`'s `editorProps.handlePaste` intercepts
+  clipboard content that has no `text/html` payload (plain text — e.g. the
+  Reader's Copy / Copy Blockquote / Copy Reference output) and routes it
+  through `editor.commands.insertContent(text, { contentType: "markdown" })`
+  instead of ProseMirror's default "insert as literal text" handling, so a
+  pasted `## Heading` / `> blockquote` renders as real formatting immediately.
+  Clipboard content that does carry HTML (copied from a webpage, another rich
+  editor, etc.) still goes through ProseMirror's normal HTML-paste path,
+  unaffected.
 - **Anchor bar** (`NotesAnchorBar.tsx`): existing anchors render as
   clickable rows with a live passage preview (fetched via `get_chapter`) that
   jump the active Reader. Composing a new anchor (`Add anchor`) gets a

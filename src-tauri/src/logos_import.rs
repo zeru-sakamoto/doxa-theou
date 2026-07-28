@@ -194,7 +194,7 @@ fn parse_segment(seg: &[&str], notebook: &str, books: &[(String, i64)], warnings
                 i += 1;
                 if i < seg.len() {
                     if let Some((num, vtext)) = classify_quote(seg[i]) {
-                        lines_in_block.push(format!("  > **{num}** {vtext}"));
+                        lines_in_block.push(format!("  > **`{num}`** {vtext}"));
                         i += 1;
                         absorb_continuations(seg, &mut i, books, &mut lines_in_block);
                     }
@@ -213,7 +213,7 @@ fn parse_segment(seg: &[&str], notebook: &str, books: &[(String, i64)], warnings
                 i += 1;
                 while i < seg.len() {
                     let Some((num, text)) = classify_quote(seg[i]) else { break };
-                    lines_in_block.push(format!("> **{num}** {text}"));
+                    lines_in_block.push(format!("> **`{num}`** {text}"));
                     i += 1;
                     absorb_continuations(seg, &mut i, books, &mut lines_in_block);
                 }
@@ -228,7 +228,7 @@ fn parse_segment(seg: &[&str], notebook: &str, books: &[(String, i64)], warnings
         if let Some((num, text)) = classify_quote(line) {
             // Shouldn't happen (headings always precede their quotes in real
             // exports), but keep the data rather than drop it.
-            blocks.push(format!("> **{num}** {text}"));
+            blocks.push(format!("> **`{num}`** {text}"));
             i += 1;
             continue;
         }
@@ -454,7 +454,7 @@ pub fn parse_logos_html(raw: &str, filename_stem: &str, books: &[(String, i64)])
                         continue;
                     }
                     match classify_quote(&seg) {
-                        Some((num, vtext)) => sub_lines.push(format!("> **{num}** {vtext}")),
+                        Some((num, vtext)) => sub_lines.push(format!("> **`{num}`** {vtext}")),
                         None => match sub_lines.last_mut() {
                             Some(last) => {
                                 last.push(' ');
@@ -584,7 +584,7 @@ mod tests {
         let (groups, _) = parse_logos_txt(raw, "Romans", &books());
         assert_eq!(groups.len(), 1);
         assert_eq!(groups[0].anchor, "Romans 1:1");
-        assert!(groups[0].body.contains("> **1** Paul, a servant."));
+        assert!(groups[0].body.contains("> **`1`** Paul, a servant."));
         assert!(groups[0].body.contains("- A note."));
     }
 
@@ -593,8 +593,8 @@ mod tests {
         let raw = "Romans\n\nRomans 1:1–2\n\nRomans 1:1\n\t\t1\t\t\tPaul, a servant.\n      2      called to be an apostle.\n\n\n* A note.\n";
         let (groups, _) = parse_logos_txt(raw, "Romans", &books());
         assert_eq!(groups.len(), 1);
-        assert!(groups[0].body.contains("> **1** Paul, a servant."));
-        assert!(groups[0].body.contains("> **2** called to be an apostle."));
+        assert!(groups[0].body.contains("> **`1`** Paul, a servant."));
+        assert!(groups[0].body.contains("> **`2`** called to be an apostle."));
     }
 
     #[test]
@@ -602,7 +602,7 @@ mod tests {
         let raw = "Romans\n\nRomans 1:7\n\nRomans 1:7\n      7      To all those in Rome:\nGrace to you and peace.\n\n\n* A note.\n";
         let (groups, _) = parse_logos_txt(raw, "Romans", &books());
         assert_eq!(groups.len(), 1);
-        assert!(groups[0].body.contains("> **7** To all those in Rome: Grace to you and peace."));
+        assert!(groups[0].body.contains("> **`7`** To all those in Rome: Grace to you and peace."));
     }
 
     #[test]
@@ -621,7 +621,7 @@ mod tests {
         assert_eq!(groups.len(), 1);
         assert!(groups[0].body.contains("- Paul encourages love."));
         assert!(groups[0].body.contains("  - John 13:35"));
-        assert!(groups[0].body.contains("  > **35** By this all people will know."));
+        assert!(groups[0].body.contains("  > **`35`** By this all people will know."));
     }
 
     #[test]
@@ -656,7 +656,7 @@ mod tests {
         assert_eq!(groups[0].anchor, "Romans 13:8-14");
         assert_eq!(groups[0].notebook, "Romans");
         assert!(groups[0].body.starts_with("## Romans 13:8\u{2013}10"));
-        assert!(groups[0].body.contains("> **8** Owe no one anything"));
+        assert!(groups[0].body.contains("> **`8`** Owe no one anything"));
         // Romans 11:2-5 (line 325) uses an ASCII hyphen for its range, unlike
         // most sub-headings in the file — it's a sub-heading (inside the
         // "Romans 11:1-10" group), not an outer heading/anchor on its own.
@@ -691,7 +691,7 @@ mod tests {
         assert_eq!(groups[0].anchor, "Romans 1:1");
         assert_eq!(groups[0].notebook, "Romans");
         assert!(groups[0].body.contains("## Romans 1:1"));
-        assert!(groups[0].body.contains("> **1** ==Paul, a servant.=="));
+        assert!(groups[0].body.contains("> **`1`** ==Paul, a servant.=="));
         assert!(groups[0].body.contains("- A note."));
         assert!(warnings.is_empty());
     }

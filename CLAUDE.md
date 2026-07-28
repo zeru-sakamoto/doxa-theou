@@ -14,7 +14,7 @@ doxa-theou (display name **Doxa Theou**; the repo/crate/bundle-identifier keep t
 - `npm run build` — typecheck (`tsc`) then build the frontend bundle
 - `npm run tauri build` — produce a release desktop bundle
 - `cargo build` / `cargo check` (run from `src-tauri/`) — build/check the Rust side directly
-- `cargo test` (run from `src-tauri/`) — run Rust tests; no test suite exists yet
+- `cargo test` (run from `src-tauri/`) — run Rust tests (currently `db.rs`, `notes.rs`, `logos_import.rs`); no frontend test runner exists yet
 - `python scripts/import_bible.py` — one-time (stdlib only, no deps): build the normalized `bible.sqlite` from the source DB, then copy it into the app-local-data dir. First copy `.env.example` to `.env` and set `BIBLE_SOURCE_DB` to your local source DB's path (the DB isn't shipped with the source). Verse data comes from this local import, **not** an ESV/network API. See `DESIGN.md`.
 
 ## Architecture

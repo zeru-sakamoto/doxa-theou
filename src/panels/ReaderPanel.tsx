@@ -27,6 +27,7 @@ import {
 } from "../workspace/icons";
 import { useArrowScroll } from "../workspace/useArrowScroll";
 import { ChapterView } from "./reader/ChapterView";
+import { SelectionToolbar } from "./reader/SelectionToolbar";
 import { TocDrawer } from "./reader/TocDrawer";
 
 export interface ReaderParams {
@@ -399,6 +400,16 @@ export function ReaderPanel({
           />
         )}
       </div>
+
+      {chapter && chapter.verses.length > 0 && (
+        <SelectionToolbar
+          containerRef={containerRef}
+          bookId={chapter.bookId}
+          chapter={chapter.chapter}
+          verses={chapter.verses}
+          bookName={ws.bookName}
+        />
+      )}
 
       <div className="reader__nav">
         <button

@@ -68,6 +68,16 @@
     @apply h-px my-1 bg-border;
   }
 
+  .selection-toolbar {
+    @apply fixed flex items-center gap-0.5 p-1 bg-panel text-ink border border-border-strong rounded-[var(--radius-md)] shadow-[var(--shadow-2)] z-[var(--z-menu)];
+  }
+  .selection-toolbar__btn {
+    @apply px-2 py-[6px] border-0 rounded-[var(--radius-sm)] bg-transparent text-inherit text-[length:var(--text-sm)] whitespace-nowrap cursor-pointer;
+  }
+  .selection-toolbar__btn:hover {
+    @apply bg-accent-tint;
+  }
+
   .panel {
     @apply h-full flex flex-col bg-bg text-ink overflow-hidden;
   }

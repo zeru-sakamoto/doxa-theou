@@ -7,7 +7,7 @@
    ==========================================================================*/
 
 .tiptap {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: var(--text-read);
   line-height: var(--lh-read);
   color: var(--text);
@@ -98,6 +98,7 @@ input.notes-title:focus-visible {
 }
 
 .tiptap blockquote {
+  font-family: var(--font-serif);
   margin: 0 0 var(--sp-3);
   padding-left: var(--sp-3);
   border-left: 2px solid var(--editor-blockquote-border);
@@ -107,10 +108,12 @@ input.notes-title:focus-visible {
 .tiptap code {
   font-family: var(--font-mono);
   font-size: 0.9em;
+  line-height: normal;
+  vertical-align: baseline;
   background: var(--editor-code-bg);
   border: 1px solid var(--editor-code-border);
   border-radius: var(--radius-xs);
-  padding: 0 4px;
+  padding: 0.02em 4px 0.15em;
 }
 .tiptap pre {
   font-family: var(--font-mono);

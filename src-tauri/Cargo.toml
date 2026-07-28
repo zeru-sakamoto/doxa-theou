@@ -1,6 +1,6 @@
 [package]
 name = "doxa-theou"
-version = "0.1.2"
+version = "0.1.3"
 description = "Bible Study App"
 authors = ["Zeru Sakamoto"]
 edition = "2021"

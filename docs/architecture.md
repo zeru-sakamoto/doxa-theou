@@ -68,6 +68,7 @@ message (surfaced in-panel, never a hard crash — see §6 error handling).
 | `save_note`                    | `folder?, note`                | `void`             | `notes.rs`         |
 | `delete_note`                  | `folder?, id`                  | `void`             | `notes.rs`         |
 | `notes_for_chapter`            | `bookId, chapter`              | `ChapterNote[]`    | `notes.rs`         |
+| `import_logos_notes`           | `paths, folder?, now, color?`  | `ImportSummary`    | `logos_import.rs`  |
 
 The verse-read commands are detailed in [`../DESIGN.md`](../DESIGN.md); the notes
 commands are covered in §3 below. App-defined commands are invocable by default
@@ -106,6 +107,20 @@ notes once at startup, owns CRUD, debounces saves **600 ms per note**, and
 exposes an **in-memory anchor index** that drives the Reader's verse highlights
 — so highlights reflect _unsaved_ edits instantly with no IPC per render, while
 `notes.sqlite` remains the system-of-record for search/cross-ref.
+
+**Importing from Logos.** Settings ▸ _Import Logos notes…_ turns one or more
+Logos Bible Study exports (`.txt`, or the HTML "Copy Bible Text" export —
+HTML additionally carries inline highlight spans) into notes, one per
+passage-heading group. `logos_import.rs` parses the export format, resolves
+each heading to a `Book Chapter:Verse[-Verse]` anchor against the book list,
+and renders each quoted verse as ``> **`N`** text`` — bold-code verse
+number, matching the Reader's own Copy Blockquote format (see
+[`front-end.md`](front-end.md) §6). Passages already imported (matched by
+anchor) are skipped rather than duplicated; the command returns an
+`ImportSummary` (imported/skipped counts + warnings, per file) that the
+Settings panel renders, and records every note id it created so **Undo
+import** (available until the app restarts) can delete exactly those notes
+and nothing the user added by hand.
 
 ---
 
@@ -204,17 +219,17 @@ translation)`, so entries never go stale and back/forth navigation is
 
 ## 7. Feature overview
 
-| Feature                | Where                                                  | Notes                                                                                                                                                                                                         |
-| ---------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Reader**             | `panels/ReaderPanel.tsx`                               | One translation per panel (chosen at open). Shows one chapter at a time (no continuous scroll); jumps land on a target verse with a brief flash. TOC drawer + chapter up/down (rolls across book boundaries). |
-| **Search**             | `panels/SearchPanel.tsx` + `db::search`                | FTS5 / bm25, capped at 50 hits, query sanitized. Notes-search is a placeholder.                                                                                                                               |
-| **Notes**              | `panels/NotesPanel.tsx`, `state/notes.tsx`, `notes.rs` | Tiptap Markdown editor, tags, verse anchors (highlight the Reader), per-note color, list search/filter. Persists to disk (debounced).                                                                         |
-| **Home**               | `panels/HomePanel.tsx`                                 | The empty-dock watermark: quick actions, "Continue reading", recently-edited notes, stats. Not an openable tab.                                                                                               |
-| **Settings**           | `panels/SettingsPanel.tsx`                             | Theme, default translation, highlight palette, notes folder, notes-panel placement.                                                                                                                           |
-| **Command palette**    | `workspace/CommandPalette.tsx`                         | ⌘/Ctrl-K go-to-reference (`Book Chapter:Verse`), fuzzy book match.                                                                                                                                            |
-| **Docking**            | `workspace/dock.tsx`                                   | dockview split/tab/rearrange; new Reader/Notes tabs join the existing group; two-group divider snaps to center.                                                                                               |
-| **Layout persistence** | `workspace/dock.tsx`                                   | Layout autosaves to `localStorage` and **restores on launch**; a corrupt/absent blob falls back to the empty dock (Home). "Layout ▸ Reset" clears it.                                                         |
-| **Theming**            | `state/workspace.tsx`, `styles/tokens.css`             | Light/dark, both first-class; applied before first paint via an inline script in `index.html`.                                                                                                                |
+| Feature                | Where                                                  | Notes                                                                                                                                                                                                                                                                                                                                                     |
+| ---------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Reader**             | `panels/ReaderPanel.tsx`                               | One translation per panel (chosen at open). Shows one chapter at a time (no continuous scroll); jumps land on a target verse with a brief flash. TOC drawer + chapter up/down (rolls across book boundaries). Selecting verse text and releasing the mouse shows a floating Copy / Copy Blockquote / Copy Reference menu (`reader/SelectionToolbar.tsx`). |
+| **Search**             | `panels/SearchPanel.tsx` + `db::search`                | FTS5 / bm25, capped at 50 hits, query sanitized. Notes-search is a placeholder.                                                                                                                                                                                                                                                                           |
+| **Notes**              | `panels/NotesPanel.tsx`, `state/notes.tsx`, `notes.rs` | Tiptap Markdown editor, tags, verse anchors (highlight the Reader), per-note color, list search/filter. Persists to disk (debounced). Pasting plain-text Markdown (e.g. from the Reader's selection menu) converts to rich formatting instead of inserting raw text. Note-list rows (sidebar/inline/card) show each note's last-modified date and time.   |
+| **Home**               | `panels/HomePanel.tsx`                                 | The empty-dock watermark: quick actions, "Continue reading", recently-edited notes, stats. Not an openable tab.                                                                                                                                                                                                                                           |
+| **Settings**           | `panels/SettingsPanel.tsx`                             | Theme, default translation, highlight palette, notes folder, notes-panel placement, Bible-database import, Logos-notes import (with per-import undo).                                                                                                                                                                                                     |
+| **Command palette**    | `workspace/CommandPalette.tsx`                         | ⌘/Ctrl-K go-to-reference (`Book Chapter:Verse`), fuzzy book match.                                                                                                                                                                                                                                                                                        |
+| **Docking**            | `workspace/dock.tsx`                                   | dockview split/tab/rearrange; new Reader/Notes tabs join the existing group; two-group divider snaps to center.                                                                                                                                                                                                                                           |
+| **Layout persistence** | `workspace/dock.tsx`                                   | Layout autosaves to `localStorage` and **restores on launch**; a corrupt/absent blob falls back to the empty dock (Home). "Layout ▸ Reset" clears it.                                                                                                                                                                                                     |
+| **Theming**            | `state/workspace.tsx`, `styles/tokens.css`             | Light/dark, both first-class; applied before first paint via an inline script in `index.html`.                                                                                                                                                                                                                                                            |
 
 UI internals (tokens, navigation events, tab grouping, scroll preservation) are
 documented in [`front-end.md`](front-end.md).

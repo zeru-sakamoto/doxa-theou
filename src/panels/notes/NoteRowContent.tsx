@@ -1,7 +1,7 @@
 // A note's summary content — title/preview, tag pills, anchors — shared by
 // the sidebar drawer, the inline full-width bars list, and the card grid, so
 // there's one definition of what a note "row" looks like.
-import { notePreview, type Note } from "./notes";
+import { formatModified, notePreview, type Note } from "./notes";
 
 export function NoteRowContent({ note }: { note: Note }) {
   return (
@@ -29,8 +29,13 @@ export function NoteRowContent({ note }: { note: Note }) {
           ))}
         </span>
       )}
-      <span className="font-(family-name:--font-mono) text-(length:--text-xs) text-muted whitespace-nowrap overflow-hidden text-ellipsis">
-        {note.anchors.join(" · ")}
+      <span className="flex items-center gap-2 font-(family-name:--font-mono) text-(length:--text-xs) text-muted">
+        <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+          {note.anchors.join(" · ")}
+        </span>
+        <span className="ml-auto shrink-0 tabular-nums">
+          {formatModified(note.modified)}
+        </span>
       </span>
     </>
   );

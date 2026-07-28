@@ -4,6 +4,7 @@
 // internal state with a manual content-sync effect.
 import { useEditor, EditorContent } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
+import { Code } from "@tiptap/extension-code";
 import { Highlight } from "@tiptap/extension-highlight";
 import { Placeholder } from "@tiptap/extension-placeholder";
 import { TaskList, TaskItem } from "@tiptap/extension-list";
@@ -36,8 +37,25 @@ export function NotesEditor({
 }: Props) {
   const ws = useWorkspace();
   const editor = useEditor({
+    editorProps: {
+      // Plain-text clipboard content (e.g. the Reader's "Copy"/"Copy
+      // Blockquote") is markdown, not literal text — parse it instead of
+      // inserting it raw. Clipboard payloads that also carry HTML (copied
+      // from a webpage, another rich editor, etc.) keep ProseMirror's normal
+      // HTML-paste handling.
+      handlePaste(_view, event) {
+        const html = event.clipboardData?.getData("text/html");
+        const text = event.clipboardData?.getData("text/plain");
+        if (html || !text?.trim()) return false;
+        editor?.commands.insertContent(text, { contentType: "markdown" });
+        return true;
+      },
+    },
     extensions: [
-      StarterKit.configure({ heading: { levels: [1, 2, 3, 4] } }),
+      StarterKit.configure({ heading: { levels: [1, 2, 3, 4] }, code: false }),
+      // Tiptap's stock Code mark excludes every other mark (`excludes: "_"`),
+      // which blocks bold inside inline code — allow them to combine.
+      Code.extend({ excludes: "" }),
       Highlight.configure({ multicolor: true }),
       TaskList,
       TaskItem.configure({ nested: true }),

@@ -94,6 +94,15 @@ export function notePreview(note: Note): string {
   return preview.length > 80 ? preview.slice(0, 80) + "…" : preview;
 }
 
+// Last-modified date + time for a note-list row (card/bar). Mirrors
+// StatusBar's clock formatting (2-digit hour/minute, browser locale).
+export function formatModified(modified: string): string {
+  const d = new Date(modified);
+  if (Number.isNaN(d.getTime())) return "";
+  const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return `${d.toLocaleDateString()} ${time}`;
+}
+
 // A resolved anchor: "BookName Chapter[:Verse[-Verse]]" -> ids. A bare chapter
 // leaves verse bounds undefined (whole-chapter anchor); a single verse has
 // verseStart === verseEnd. Also accepts a cross-chapter span "Chapter:Verse-
