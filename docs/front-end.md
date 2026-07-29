@@ -411,12 +411,22 @@ no visible effect there would be confusing).
 Notes are loaded once at startup by `NotesProvider` (`src/state/notes.tsx`,
 wraps `WorkspaceShell` in `App.tsx`) via the real Rust commands
 (`load_notes`/`save_note`/`delete_note`, `src-tauri/src/notes.rs`) —
-Markdown-on-disk with frontmatter (`id`, `title`, `tags`, `anchors`, `color`,
-`created`, `modified`) is the source of truth, `notes.sqlite` is the search
-index. Edits are debounced (600ms) per-note before writing to disk.
+Markdown-on-disk with frontmatter (`id`, `title`, `tags`, `anchors`, `book`,
+`notebook`, `color`, `created`, `modified`) is the source of truth,
+`notes.sqlite` is the search index. `book` is a list of every book the
+note's anchors touch (recomputed on every anchor add/remove via
+`booksForAnchors()`), distinct from the free-text `notebook` grouping field.
+Edits are debounced (600ms) per-note before writing to disk.
 `notes/notes.ts` is the frontend-side helpers: the list preview
-(`notePreview()`), the highlight palette, `NotesListDisplay`, and anchor
-parsing (shared with the Reader's highlight index). Unlike the Reader's TOC
+(`notePreview()`), the highlight palette, `NotesListDisplay`, anchor
+parsing, and `booksForAnchors()` (shared with the Reader's highlight index).
+When an anchor's verse range exactly matches a stored passage heading
+(`section_headings_for_chapter`, see below), `NotesPanel`'s `confirmAnchor`
+prefills the still-blank title with that heading, checked against the
+workspace's active translation. Logos-imported notes get the same
+treatment on the Rust side (`logos_import.rs`'s `auto_title`, checked
+against the Bible DB's default translation) since each imported note's
+anchor is already a resolved single-chapter range. Unlike the Reader's TOC
 drawer, the note-list sidebar (`notes/NotesDrawer.tsx`'s `"sidebar"` variant)
 isn't an overlay; it's a collapsible flex column that animates width and
 pushes the editor over rather than floating on top with a scrim, so it never

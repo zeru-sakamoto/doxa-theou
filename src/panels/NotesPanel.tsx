@@ -18,7 +18,8 @@ import {
   PlusIcon,
 } from "../workspace/icons";
 import { useArrowScroll } from "../workspace/useArrowScroll";
-import type { Note } from "./notes/notes";
+import { sectionHeadingsForChapter } from "../api";
+import { booksForAnchors, parseAnchor, type Note } from "./notes/notes";
 import { NotebookMenu } from "./notes/NotebookMenu";
 import { NotesCardGrid } from "./notes/NotesCardGrid";
 import { NotesColorMenu } from "./notes/NotesColorMenu";
@@ -98,18 +99,51 @@ export function NotesPanel({ api, params }: IDockviewPanelProps<NotesParams>) {
     selectNote(null);
   }
 
+  // If the anchor's verse range exactly matches a stored passage heading,
+  // prefill the title with it — but only while the title is still blank, so
+  // this never clobbers something the user typed (checked again at write
+  // time in case a title was typed while this lookup was in flight).
+  async function maybeAutoTitle(noteId: string, anchor: string) {
+    const ref = parseAnchor(anchor, ws.books);
+    if (!ref || ref.chapterStart !== ref.chapterEnd) return;
+    if (ref.verseStart == null || ref.verseEnd == null) return;
+    const headings = await sectionHeadingsForChapter(
+      ref.bookId,
+      ref.chapterStart,
+      ws.activeTranslation,
+    );
+    const match = headings.find(
+      (h) =>
+        h.chapter === ref.chapterStart &&
+        h.end_chapter === ref.chapterEnd &&
+        h.verse_start === ref.verseStart &&
+        h.verse_end === ref.verseEnd,
+    );
+    if (!match) return;
+    updateNote(noteId, (n) => (n.title.trim() ? {} : { title: match.heading }));
+  }
+
   function confirmAnchor(value: string) {
     const v = value.trim();
-    if (v && selectedNote && !selectedNote.anchors.includes(v))
-      updateNote(selectedNote.id, (n) => ({ anchors: [...n.anchors, v] }));
+    if (v && selectedNote && !selectedNote.anchors.includes(v)) {
+      const anchors = [...selectedNote.anchors, v];
+      const wasUntitled = !selectedNote.title.trim();
+      updateNote(selectedNote.id, {
+        anchors,
+        book: booksForAnchors(anchors, ws.books),
+      });
+      if (wasUntitled) void maybeAutoTitle(selectedNote.id, v);
+    }
     setAnchorDraft(null);
   }
 
   function removeAnchor(anchor: string) {
     if (!selectedNote) return;
-    updateNote(selectedNote.id, (n) => ({
-      anchors: n.anchors.filter((a) => a !== anchor),
-    }));
+    const anchors = selectedNote.anchors.filter((a) => a !== anchor);
+    updateNote(selectedNote.id, {
+      anchors,
+      book: booksForAnchors(anchors, ws.books),
+    });
   }
 
   function addTag(value: string) {

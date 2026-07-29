@@ -21,6 +21,8 @@ pub struct Note {
     #[serde(default)]
     pub anchors: Vec<String>,
     #[serde(default)]
+    pub book: Vec<String>,
+    #[serde(default)]
     pub notebook: String,
     #[serde(default)]
     pub color: Option<String>,
@@ -116,7 +118,7 @@ pub fn parse_note(raw: &str) -> Result<Note, String> {
     }
     let mut id = String::new();
     let (mut title, mut created, mut modified) = (String::new(), String::new(), String::new());
-    let (mut tags, mut anchors) = (Vec::new(), Vec::new());
+    let (mut tags, mut anchors, mut book) = (Vec::new(), Vec::new(), Vec::new());
     let mut notebook = String::new();
     let mut color: Option<String> = None;
     let mut ended = false;
@@ -139,6 +141,7 @@ pub fn parse_note(raw: &str) -> Result<Note, String> {
             "modified" => modified = val.to_string(),
             "tags" => tags = parse_list(val),
             "anchors" => anchors = parse_list(val),
+            "book" => book = parse_list(val),
             "notebook" => notebook = val.to_string(),
             "color" if !val.is_empty() => color = Some(val.to_string()),
             _ => {}
@@ -152,6 +155,7 @@ pub fn parse_note(raw: &str) -> Result<Note, String> {
         title,
         tags,
         anchors,
+        book,
         notebook,
         color,
         created,
@@ -166,6 +170,7 @@ pub fn serialize_note(note: &Note) -> String {
     s.push_str(&format!("title: {}\n", note.title));
     s.push_str(&format!("tags: [{}]\n", note.tags.join(", ")));
     s.push_str(&format!("anchors: [{}]\n", note.anchors.join(", ")));
+    s.push_str(&format!("book: [{}]\n", note.book.join(", ")));
     s.push_str(&format!("notebook: {}\n", note.notebook));
     if let Some(c) = &note.color {
         s.push_str(&format!("color: {c}\n"));
@@ -377,6 +382,7 @@ mod tests {
             title: "Title".into(),
             tags: vec!["t1".into()],
             anchors: vec!["John 3:16".into()],
+            book: vec!["John".into()],
             notebook: String::new(),
             color: Some("var(--highlight-rose)".into()),
             created: "2026-01-01".into(),
@@ -386,6 +392,7 @@ mod tests {
         let parsed = parse_note(&serialize_note(&n)).unwrap();
         assert_eq!(parsed.id, n.id);
         assert_eq!(parsed.anchors, n.anchors);
+        assert_eq!(parsed.book, n.book);
         assert_eq!(parsed.color, n.color);
         assert_eq!(parsed.body, n.body);
     }
@@ -400,6 +407,7 @@ mod tests {
             title: "Word".into(),
             tags: vec![],
             anchors: vec!["John 1:1".into()],
+            book: vec![],
             notebook: String::new(),
             color: Some("var(--highlight-indigo)".into()),
             created: String::new(),
@@ -423,6 +431,7 @@ mod tests {
             title: "Span".into(),
             tags: vec![],
             anchors: vec!["Romans 9:30-10:4".into()],
+            book: vec![],
             notebook: String::new(),
             color: None,
             created: String::new(),
@@ -474,6 +483,7 @@ mod tests {
             title: "Word".into(),
             tags: vec!["x".into()],
             anchors: vec![format!("{john} 1:1")],
+            book: vec![john.clone()],
             notebook: String::new(),
             color: Some("var(--highlight-teal)".into()),
             created: "2026-01-01".into(),

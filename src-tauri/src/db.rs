@@ -59,6 +59,20 @@ pub struct HeadingSuggestion {
     pub heading: String,
 }
 
+/// A section heading with its full range and book — unlike `SectionHeading`
+/// (scoped to one already-known book/chapter) or `HeadingSuggestion` (title
+/// lookup only), this carries everything needed to exact-match an arbitrary
+/// (book, chapter, verse range) against every heading at once. Used by the
+/// Logos importer to auto-title notes without a per-note round trip.
+pub struct HeadingRange {
+    pub book_id: i64,
+    pub chapter: i64,
+    pub verse_start: i64,
+    pub end_chapter: i64,
+    pub verse_end: i64,
+    pub heading: String,
+}
+
 #[derive(Serialize)]
 pub struct SearchHit {
     pub verse_ref_id: i64,
@@ -236,6 +250,46 @@ pub fn list_section_headings(
         })
     })?
     .collect()
+}
+
+/// Every section heading for `translation` with its full (book, range) —
+/// see `HeadingRange`. Not exposed as a Tauri command; used internally by
+/// the Logos importer (`logos_import.rs`) to build an in-memory lookup once
+/// per import instead of a query per note.
+pub fn list_section_heading_ranges(
+    conn: &Connection,
+    translation: &str,
+) -> rusqlite::Result<Vec<HeadingRange>> {
+    conn.prepare(
+        "SELECT sh.book_id, sh.chapter, sh.verse_start, sh.end_chapter, sh.verse_end, sh.heading \
+         FROM section_headings sh \
+         JOIN translations t ON t.id = sh.translation_id \
+         WHERE t.code = ?1 \
+         ORDER BY sh.book_id, sh.chapter, sh.verse_start, sh.id",
+    )?
+    .query_map((translation,), |r| {
+        Ok(HeadingRange {
+            book_id: r.get(0)?,
+            chapter: r.get(1)?,
+            verse_start: r.get(2)?,
+            end_chapter: r.get(3)?,
+            verse_end: r.get(4)?,
+            heading: r.get(5)?,
+        })
+    })?
+    .collect()
+}
+
+/// The translation to check passage headings against when no specific one is
+/// known (e.g. the headless Logos importer) — the DB's own default, else its
+/// first translation. `None` only if the DB has no translations at all.
+pub fn default_translation_code(conn: &Connection) -> rusqlite::Result<Option<String>> {
+    let translations = list_translations(conn)?;
+    Ok(translations
+        .iter()
+        .find(|t| t.is_default)
+        .or_else(|| translations.first())
+        .map(|t| t.code.clone()))
 }
 
 /// Arbitrary user text -> safe FTS5 MATCH string: each whitespace-separated

@@ -22,6 +22,7 @@
 //! attribute, and every note already gets one flat anchor color — see
 //! `import_files`'s `color` param), just which phrases were highlighted.
 
+use crate::db::HeadingRange;
 use crate::notes::{self, Note};
 use ego_tree::NodeRef;
 use rusqlite::Connection;
@@ -483,11 +484,30 @@ pub fn parse_logos_html(raw: &str, filename_stem: &str, books: &[(String, i64)])
     (groups, warnings)
 }
 
+// If `anchor`'s verse range exactly matches one of `headings`, that
+// heading's text; otherwise empty (same "adopt the passage heading" rule
+// NotesPanel applies interactively, see maybeAutoTitle in NotesPanel.tsx —
+// cross-chapter and whole-chapter anchors never match, same as there).
+fn auto_title(anchor: &str, books: &[(String, i64)], headings: &[HeadingRange]) -> String {
+    let Some((book_id, c1, Some(vs), c2, Some(ve))) = notes::resolve_anchor(anchor, books) else {
+        return String::new();
+    };
+    if c1 != c2 {
+        return String::new();
+    }
+    headings
+        .iter()
+        .find(|h| h.book_id == book_id && h.chapter == c1 && h.end_chapter == c2 && h.verse_start == vs && h.verse_end == ve)
+        .map(|h| h.heading.clone())
+        .unwrap_or_default()
+}
+
 /// Parses and imports every path in `paths`, skipping any group whose
 /// (notebook, anchor) already matches an existing note.
 pub fn import_files(
     notes_conn: &Connection,
     books: &[(String, i64)],
+    headings: &[HeadingRange],
     folder: &Path,
     paths: &[String],
     now: &str,
@@ -532,9 +552,10 @@ pub fn import_files(
             }
             let note = Note {
                 id: format!("logos-{}", Uuid::new_v4()),
-                title: String::new(),
+                title: auto_title(&g.anchor, books, headings),
                 tags: Vec::new(),
                 anchors: vec![g.anchor],
+                book: vec![g.notebook.clone()],
                 notebook: g.notebook,
                 color: color.clone(),
                 created: now.to_string(),
@@ -576,6 +597,28 @@ mod tests {
             ("habakkuk".into(), 35),
             ("hebrews".into(), 58),
         ]
+    }
+
+    #[test]
+    fn auto_title_matches_exact_range_only() {
+        let headings = vec![HeadingRange {
+            book_id: 45,
+            chapter: 13,
+            verse_start: 8,
+            end_chapter: 13,
+            verse_end: 14,
+            heading: "Love Fulfills the Law".into(),
+        }];
+        // Exact match.
+        assert_eq!(
+            auto_title("Romans 13:8-14", &books(), &headings),
+            "Love Fulfills the Law"
+        );
+        // Partial/non-exact ranges, and a cross-chapter anchor, never match.
+        assert_eq!(auto_title("Romans 13:8-13", &books(), &headings), "");
+        assert_eq!(auto_title("Romans 13", &books(), &headings), "");
+        assert_eq!(auto_title("Romans 9:30-10:4", &books(), &headings), "");
+        assert_eq!(auto_title("John 1:1", &books(), &headings), "");
     }
 
     #[test]

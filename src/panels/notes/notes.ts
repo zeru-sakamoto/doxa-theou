@@ -148,3 +148,16 @@ export function parseAnchor(anchor: string, books: Book[]): AnchorRef | null {
     verseEnd: m[3] ? parseInt(m[3], 10) : m[2] ? parseInt(m[2], 10) : undefined,
   };
 }
+
+// Every book a note's anchors touch, as display names in canonical Bible
+// order (not anchor-insertion order) — the source for the `book` frontmatter
+// field, recomputed whenever anchors change (see NotesPanel's confirmAnchor/
+// removeAnchor).
+export function booksForAnchors(anchors: string[], books: Book[]): string[] {
+  const ids = new Set<number>();
+  for (const raw of anchors) {
+    const ref = parseAnchor(raw, books);
+    if (ref) ids.add(ref.bookId);
+  }
+  return books.filter((b) => ids.has(b.id)).map((b) => b.name);
+}

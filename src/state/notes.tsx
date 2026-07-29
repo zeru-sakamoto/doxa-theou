@@ -126,6 +126,7 @@ export function NotesProvider({ children }: { children: ReactNode }) {
         title: "",
         tags: [],
         anchors: [],
+        book: [],
         notebook: "",
         color,
         created: now,

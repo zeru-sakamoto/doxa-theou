@@ -203,9 +203,20 @@ fn import_logos_notes(
     color: Option<String>,
 ) -> Result<logos_import::ImportSummary, String> {
     let books = book_map(&bible)?;
+    // Same "never hold both locks at once" rule as book_map: read every
+    // heading for the default translation out of bible.sqlite and drop the
+    // lock before touching the notes conn, so import_files can auto-title
+    // notes from an in-memory lookup instead of a query per note.
+    let headings = {
+        let conn = bible.0.lock().map_err(|e| e.to_string())?;
+        match db::default_translation_code(&conn).map_err(|e| e.to_string())? {
+            Some(t) => db::list_section_heading_ranges(&conn, &t).map_err(|e| e.to_string())?,
+            None => Vec::new(),
+        }
+    };
     let dir = notes_folder(&app, folder)?;
     let conn = state.0.lock().map_err(|e| e.to_string())?;
-    logos_import::import_files(&conn, &books, &dir, &paths, &now, color)
+    logos_import::import_files(&conn, &books, &headings, &dir, &paths, &now, color)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
