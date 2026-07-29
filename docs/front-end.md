@@ -272,13 +272,13 @@ rather than snapping straight in, and honors `prefers-reduced-motion`.
 
 Registered in `dock.tsx` under a `components` map (`id → component`).
 
-| Panel        | Wired to backend                                             | Notes                                                                                                                                                                                                                                                                                            |
-| ------------ | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Home**     | —                                                            | Landing view: quick actions (start reading, open Notes/Search/Settings) + a recently-edited-notes list. The dockview watermark shown whenever the dock is empty — not an openable panel/tab.                                                                                                     |
-| **Reader**   | `get_chapter`, `list_books`                                  | One translation, chosen at open time ("version-dedicated").                                                                                                                                                                                                                                      |
-| **Search**   | `search` (FTS5 / bm25)                                       | **Scripture** group (FTS5/bm25 via `search`) + **Notes** group (client-side substring match over the in-memory notes — title/tags/body); note hits open in the Notes panel. The `.panel__scroll` results list scrolls via `workspace/useArrowScroll.ts` while Search is dockview's active panel. |
-| **Notes**    | `load_notes`/`save_note`/`delete_note`                       | Header, list, and a real Tiptap editor (toolbar, anchors, optional title); notes persist to disk via `NotesProvider` (`src/state/notes.tsx`), debounced per-note.                                                                                                                                |
-| **Settings** | `list_translations`, `import_bible_db`, `import_logos_notes` | Theme toggle, default translation, Bible-database import (pick a prebuilt `bible.sqlite`), Logos-notes import (one or more `.txt`/HTML exports → notes, dedupe + per-import undo), shared highlight palette, notes folder picker, notes-panel placement (Active/Left/Right).                     |
+| Panel        | Wired to backend                                             | Notes                                                                                                                                                                                                                                                                                                                            |
+| ------------ | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Home**     | —                                                            | Landing view: quick actions (start reading, open Notes/Search/Settings) + a recently-edited-notes list. The dockview watermark shown whenever the dock is empty — not an openable panel/tab.                                                                                                                                     |
+| **Reader**   | `get_chapter`, `list_books`                                  | One translation, chosen at open time ("version-dedicated").                                                                                                                                                                                                                                                                      |
+| **Search**   | `search` (FTS5 / bm25)                                       | **Scripture** group (FTS5/bm25 via `search`) + **Notes** group (client-side substring match over the in-memory notes — title/tags/body); note hits open in the Notes panel. The `.panel__scroll` results list scrolls via `workspace/useArrowScroll.ts` while Search is dockview's active panel.                                 |
+| **Notes**    | `load_notes`/`save_note`/`delete_note`                       | Header, list, and a real Tiptap editor (toolbar, anchors, optional title); notes persist to disk via `NotesProvider` (`src/state/notes.tsx`), debounced per-note.                                                                                                                                                                |
+| **Settings** | `list_translations`, `import_bible_db`, `import_logos_notes` | Theme toggle, default translation, Bible-database import (pick a prebuilt `bible.sqlite`), Logos-notes import (one or more `.txt`/HTML exports → notes, dedupe + per-import undo + retitles already-imported blank-titled duplicates), shared highlight palette, notes folder picker, notes-panel placement (Active/Left/Right). |
 
 **Home** (`HomePanel.tsx`). The empty-dock screen — passed only as
 dockview's `watermarkComponent` (auto-shown whenever the dock has zero
@@ -423,10 +423,22 @@ parsing, and `booksForAnchors()` (shared with the Reader's highlight index).
 When an anchor's verse range exactly matches a stored passage heading
 (`section_headings_for_chapter`, see below), `NotesPanel`'s `confirmAnchor`
 prefills the still-blank title with that heading, checked against the
-workspace's active translation. Logos-imported notes get the same
-treatment on the Rust side (`logos_import.rs`'s `auto_title`, checked
-against the Bible DB's default translation) since each imported note's
-anchor is already a resolved single-chapter range. Unlike the Reader's TOC
+workspace's active translation. This also matches cross-chapter headings
+(e.g. "Romans 9:30-10:4"): `parseAnchor` (`notes/notes.ts`) resolves the
+anchor's start/end chapter and verse separately, and `maybeAutoTitle` looks
+up headings starting in the anchor's start chapter and compares both ends
+(`chapter`/`end_chapter`/`verse_start`/`verse_end`) rather than requiring a
+single-chapter anchor. Logos-imported notes get the same treatment
+(including cross-chapter spans) on the Rust side (`logos_import.rs`'s
+`auto_title`, checked against the Bible DB's default translation and
+`notes::resolve_anchor` for parsing). Because `auto_title` only has whatever
+heading data `bible.sqlite` held at import time, `import_files` also treats
+re-importing a file as a chance to repair past misses: if a passage group's
+`(notebook, anchor)` key already exists as a note with a still-blank title,
+that duplicate is retitled in place (via `auto_title` against the _current_
+headings) instead of being silently skipped — surfaced to the frontend as
+`FileImportResult.retitled`/`ImportSummary.total_retitled` (`src/api.ts`),
+shown in `SettingsPanel.tsx`'s import summary line. Unlike the Reader's TOC
 drawer, the note-list sidebar (`notes/NotesDrawer.tsx`'s `"sidebar"` variant)
 isn't an overlay; it's a collapsible flex column that animates width and
 pushes the editor over rather than floating on top with a scrim, so it never

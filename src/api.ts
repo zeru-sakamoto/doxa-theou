@@ -184,6 +184,10 @@ export interface FileImportResult {
   book: string;
   imported: number;
   skipped: number;
+  // Of `skipped`, how many were already-imported notes with a blank title
+  // that got retitled in place because the current section-heading data now
+  // matches their anchor — repairs notes imported before a heading fix.
+  retitled: number;
   warnings: string[];
   imported_ids: string[];
 }
@@ -191,6 +195,7 @@ export interface ImportSummary {
   files: FileImportResult[];
   total_imported: number;
   total_skipped: number;
+  total_retitled: number;
 }
 export const importLogosNotes = (
   paths: string[],

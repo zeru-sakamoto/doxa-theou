@@ -105,7 +105,7 @@ export function NotesPanel({ api, params }: IDockviewPanelProps<NotesParams>) {
   // time in case a title was typed while this lookup was in flight).
   async function maybeAutoTitle(noteId: string, anchor: string) {
     const ref = parseAnchor(anchor, ws.books);
-    if (!ref || ref.chapterStart !== ref.chapterEnd) return;
+    if (!ref) return;
     if (ref.verseStart == null || ref.verseEnd == null) return;
     const headings = await sectionHeadingsForChapter(
       ref.bookId,

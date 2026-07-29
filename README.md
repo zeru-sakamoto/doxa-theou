@@ -17,12 +17,15 @@ width — as cards or full-width bars, a preference toggled in the header —
 instead of a blank editor. Notes are Markdown files with frontmatter, edited
 in a live Tiptap editor and persisted to disk (a rebuilt SQLite index backs
 search and verse-anchor highlighting). Anchoring a note to a verse range
-that exactly matches a passage heading auto-fills a still-blank title with
-that heading. Pasting plain-text Markdown — including
-straight out of the Reader's selection menu — converts to real formatting
-instead of dropping in as a raw string. Settings can also bulk-import Logos
-Bible Study exports (`.txt`/HTML) as notes, one per passage, with dedupe, the
-same passage-heading auto-titling, and an undo for the last import.
+that exactly matches a passage heading — including cross-chapter headings
+like "Romans 9:30-10:4" — auto-fills a still-blank title with that heading.
+Pasting plain-text Markdown — including straight out of the Reader's
+selection menu — converts to real formatting instead of dropping in as a raw
+string. Settings can also bulk-import Logos Bible Study exports (`.txt`/HTML)
+as notes, one per passage, with dedupe, the same passage-heading
+auto-titling, and an undo for the last import; re-importing a file also
+retitles any already-imported note that's still untitled, in case the
+passage-heading data has been fixed/extended since it was first imported.
 
 Opening another Reader or note tabs it into the existing Reader/Notes group
 instead of re-splitting the screen; right-click a tab for **Duplicate tab**,

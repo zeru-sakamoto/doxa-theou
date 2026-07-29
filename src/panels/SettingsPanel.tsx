@@ -298,6 +298,7 @@ export function SettingsPanel() {
                 {logosSummary.files.map((f) => (
                   <li key={f.file}>
                     {f.file} — {f.imported} imported, {f.skipped} skipped
+                    {f.retitled > 0 && ` (${f.retitled} retitled)`}
                     {f.warnings.length > 0 && (
                       <ul className="ml-3 list-disc list-inside panel__muted">
                         {f.warnings.map((w, i) => (

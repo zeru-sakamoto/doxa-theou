@@ -31,7 +31,13 @@ stdlib-only, one-time. Drops/recreates the output file, then:
 4. Inserts `verse_texts`: `(verse_ref_id, translation_id) → text` (~182k rows),
    with scraper artifacts stripped and glued text lightly re-spaced.
 5. Inserts `section_headings` per translation (~15,313 rows total) from the
-   source's `headings` table.
+   source's `headings` table. Each heading's `end_chapter`/`verse_end` is
+   computed as "one verse before the next heading anywhere in the book" —
+   not clipped to the heading's own starting chapter — so a heading can
+   legitimately span into (or across) later chapters when a translation has
+   no heading of its own there (e.g. ESV's "Israel's Unbelief" starts at
+   Romans 9:30 and runs through 10:4, since ESV's next heading isn't until
+   10:5).
 6. Populates `verse_fts`, an FTS5 mirror of `verse_texts` for search.
 7. Runs an `assert`-based self-check (row counts, a known verse + heading
    present, FTS matches) and prints counts.

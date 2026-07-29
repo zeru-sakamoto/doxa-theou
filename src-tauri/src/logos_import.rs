@@ -28,7 +28,7 @@ use ego_tree::NodeRef;
 use rusqlite::Connection;
 use scraper::{ElementRef, Html, Node};
 use serde::Serialize;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 use uuid::Uuid;
@@ -45,6 +45,13 @@ pub struct FileImportResult {
     pub book: String,
     pub imported: usize,
     pub skipped: usize,
+    // Of `skipped`, how many were already-imported notes with a blank title
+    // that got retitled in place because `headings` now has a match for
+    // their anchor (see `import_files`'s backfill pass below) — covers
+    // notes imported before a bible.sqlite heading-range fix landed, so
+    // re-running an import repairs them instead of leaving them blank
+    // forever.
+    pub retitled: usize,
     pub warnings: Vec<String>,
     // ids of the notes actually created by this file (not skipped as
     // already-imported) — lets the frontend offer a one-shot "revert this
@@ -57,6 +64,7 @@ pub struct ImportSummary {
     pub files: Vec<FileImportResult>,
     pub total_imported: usize,
     pub total_skipped: usize,
+    pub total_retitled: usize,
 }
 
 // --- line classification -----------------------------------------------
@@ -487,14 +495,12 @@ pub fn parse_logos_html(raw: &str, filename_stem: &str, books: &[(String, i64)])
 // If `anchor`'s verse range exactly matches one of `headings`, that
 // heading's text; otherwise empty (same "adopt the passage heading" rule
 // NotesPanel applies interactively, see maybeAutoTitle in NotesPanel.tsx —
-// cross-chapter and whole-chapter anchors never match, same as there).
+// cross-chapter spans like "Romans 9:30-10:4" match too; only whole-chapter
+// anchors, which have no verse bounds, never match).
 fn auto_title(anchor: &str, books: &[(String, i64)], headings: &[HeadingRange]) -> String {
     let Some((book_id, c1, Some(vs), c2, Some(ve))) = notes::resolve_anchor(anchor, books) else {
         return String::new();
     };
-    if c1 != c2 {
-        return String::new();
-    }
     headings
         .iter()
         .find(|h| h.book_id == book_id && h.chapter == c1 && h.end_chapter == c2 && h.verse_start == vs && h.verse_end == ve)
@@ -521,10 +527,25 @@ pub fn import_files(
             n.anchors.iter().map(move |a| (notebook.clone(), a.clone()))
         })
         .collect();
+    // Already-imported notes with a still-blank title, keyed the same way as
+    // `seen` — a re-import that hits one of these as a "duplicate" retitles
+    // it in place instead of just skipping, so fixing bible.sqlite's heading
+    // data (or the auto_title matching rules) actually reaches notes
+    // imported before the fix.
+    let mut blank_titled: HashMap<(String, String), Note> = HashMap::new();
+    for n in &existing {
+        if n.title.trim().is_empty() {
+            let notebook = n.notebook.to_lowercase();
+            for a in &n.anchors {
+                blank_titled.insert((notebook.clone(), a.clone()), n.clone());
+            }
+        }
+    }
 
     let mut files = Vec::new();
     let mut total_imported = 0;
     let mut total_skipped = 0;
+    let mut total_retitled = 0;
 
     for path_str in paths {
         let path = Path::new(path_str);
@@ -542,12 +563,21 @@ pub fn import_files(
         };
         let book = groups.first().map(|g| g.notebook.clone()).unwrap_or_else(|| stem.clone());
 
-        let (mut imported, mut skipped) = (0, 0);
+        let (mut imported, mut skipped, mut retitled) = (0, 0, 0);
         let mut imported_ids = Vec::new();
         for g in groups {
             let key = (g.notebook.to_lowercase(), g.anchor.clone());
-            if !seen.insert(key) {
+            if !seen.insert(key.clone()) {
                 skipped += 1;
+                if let Some(mut stale) = blank_titled.remove(&key) {
+                    let title = auto_title(&g.anchor, books, headings);
+                    if !title.is_empty() {
+                        stale.title = title;
+                        stale.modified = now.to_string();
+                        notes::save_note(notes_conn, books, folder, &stale)?;
+                        retitled += 1;
+                    }
+                }
                 continue;
             }
             let note = Note {
@@ -569,6 +599,7 @@ pub fn import_files(
 
         total_imported += imported;
         total_skipped += skipped;
+        total_retitled += retitled;
         warnings.sort();
         warnings.dedup();
         files.push(FileImportResult {
@@ -576,12 +607,13 @@ pub fn import_files(
             book,
             imported,
             skipped,
+            retitled,
             warnings,
             imported_ids,
         });
     }
 
-    Ok(ImportSummary { files, total_imported, total_skipped })
+    Ok(ImportSummary { files, total_imported, total_skipped, total_retitled })
 }
 
 #[cfg(test)]
@@ -601,24 +633,107 @@ mod tests {
 
     #[test]
     fn auto_title_matches_exact_range_only() {
-        let headings = vec![HeadingRange {
-            book_id: 45,
-            chapter: 13,
-            verse_start: 8,
-            end_chapter: 13,
-            verse_end: 14,
-            heading: "Love Fulfills the Law".into(),
-        }];
+        let headings = vec![
+            HeadingRange {
+                book_id: 45,
+                chapter: 13,
+                verse_start: 8,
+                end_chapter: 13,
+                verse_end: 14,
+                heading: "Love Fulfills the Law".into(),
+            },
+            HeadingRange {
+                book_id: 45,
+                chapter: 9,
+                verse_start: 30,
+                end_chapter: 10,
+                verse_end: 4,
+                heading: "Israel's Unbelief".into(),
+            },
+        ];
         // Exact match.
         assert_eq!(
             auto_title("Romans 13:8-14", &books(), &headings),
             "Love Fulfills the Law"
         );
-        // Partial/non-exact ranges, and a cross-chapter anchor, never match.
+        // Exact cross-chapter match.
+        assert_eq!(
+            auto_title("Romans 9:30-10:4", &books(), &headings),
+            "Israel's Unbelief"
+        );
+        // Partial/non-exact ranges, and a whole-chapter anchor, never match.
         assert_eq!(auto_title("Romans 13:8-13", &books(), &headings), "");
         assert_eq!(auto_title("Romans 13", &books(), &headings), "");
-        assert_eq!(auto_title("Romans 9:30-10:4", &books(), &headings), "");
         assert_eq!(auto_title("John 1:1", &books(), &headings), "");
+    }
+
+    // Re-importing a file whose passage was already imported before a
+    // bible.sqlite heading fix landed (so the existing note's title is still
+    // blank) should retitle that note in place instead of just skipping it.
+    #[test]
+    fn reimport_retitles_stale_blank_titled_duplicate() {
+        let books = books();
+        let headings = vec![HeadingRange {
+            book_id: 45,
+            chapter: 9,
+            verse_start: 30,
+            end_chapter: 10,
+            verse_end: 4,
+            heading: "Israel's Unbelief".into(),
+        }];
+
+        let notes_dir = std::env::temp_dir()
+            .join(format!("doxa-logos-retitle-notes-{}", std::process::id()));
+        let src_dir =
+            std::env::temp_dir().join(format!("doxa-logos-retitle-src-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&notes_dir);
+        let _ = fs::remove_dir_all(&src_dir);
+        fs::create_dir_all(&notes_dir).unwrap();
+        fs::create_dir_all(&src_dir).unwrap();
+
+        let notes_conn = notes::open(Path::new(":memory:")).unwrap();
+
+        // Simulate a note already imported before the heading data had a
+        // 9:30-10:4 range, so auto_title returned "" and it was saved blank.
+        let stale = Note {
+            id: "logos-stale".into(),
+            title: String::new(),
+            tags: Vec::new(),
+            anchors: vec!["Romans 9:30-10:4".into()],
+            book: vec!["Romans".into()],
+            notebook: "Romans".into(),
+            color: None,
+            created: "2026-01-01".into(),
+            modified: "2026-01-01".into(),
+            body: "old body".into(),
+        };
+        notes::save_note(&notes_conn, &books, &notes_dir, &stale).unwrap();
+
+        let txt_path = src_dir.join("Romans.txt");
+        fs::write(&txt_path, "Romans\n\nRomans 9:30-10:4\n\n30 Test text\n").unwrap();
+
+        let summary = import_files(
+            &notes_conn,
+            &books,
+            &headings,
+            &notes_dir,
+            &[txt_path.to_str().unwrap().to_string()],
+            "2026-02-01",
+            None,
+        )
+        .unwrap();
+
+        assert_eq!(summary.total_imported, 0);
+        assert_eq!(summary.total_skipped, 1);
+        assert_eq!(summary.total_retitled, 1);
+
+        let reloaded = notes::load_notes(&notes_conn, &books, &notes_dir).unwrap();
+        let note = reloaded.iter().find(|n| n.id == "logos-stale").unwrap();
+        assert_eq!(note.title, "Israel's Unbelief");
+        assert_eq!(note.body, "old body", "backfill must not touch existing content");
+
+        let _ = fs::remove_dir_all(&notes_dir);
+        let _ = fs::remove_dir_all(&src_dir);
     }
 
     #[test]

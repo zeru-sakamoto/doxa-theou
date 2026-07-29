@@ -247,9 +247,15 @@ def build(src: Path, out: Path) -> sqlite3.Connection:
 
     # section_headings: every heading row (position 0 = section heading,
     # 1-3 = psalm/passage title lines) becomes its own row, in reading order.
-    # end_chapter/verse_end are cosmetic (db.rs only ever filters by book_id +
-    # chapter + translation): range end = one verse before the next heading
-    # anchor in this chapter, or the chapter's last verse if it's the last one.
+    # A heading's true end is "one verse before the next heading anywhere in
+    # the book" — NOT clipped to its own chapter. Some translations' last
+    # heading in a chapter genuinely continues into the next chapter(s)
+    # before the next heading starts (e.g. ESV's "Israel's Unbelief" starts
+    # at Romans 9:30 and the next ESV heading isn't until 10:5, so its real
+    # range is 9:30-10:4; NIV has no heading at all in Romans 10, so its
+    # 9:30 heading runs all the way to the end of chapter 10). db.rs's
+    # cross-chapter matching (see NotesPanel.tsx's maybeAutoTitle) depends on
+    # end_chapter/verse_end being correct, not just cosmetic.
     for code in codes:
         hrows = src_db.execute(
             "SELECT book, chapter, verse_start, position, text FROM headings "
@@ -257,29 +263,38 @@ def build(src: Path, out: Path) -> sqlite3.Connection:
             (code,),
         ).fetchall()
         max_verse = {}
+        max_chapter = {}
         for book, chapter, verse, _text in fixed[code]:
-            key = (book, chapter)
-            if verse > max_verse.get(key, 0):
-                max_verse[key] = verse
-        anchors = {}
+            vkey = (book, chapter)
+            if verse > max_verse.get(vkey, 0):
+                max_verse[vkey] = verse
+            if chapter > max_chapter.get(book, 0):
+                max_chapter[book] = chapter
+        anchors_by_book = {}
         for book, chapter, verse_start, _position, _text in hrows:
-            anchors.setdefault((book, chapter), set()).add(verse_start)
-        anchors = {k: sorted(v) for k, v in anchors.items()}
+            anchors_by_book.setdefault(book, set()).add((chapter, verse_start))
+        anchors_by_book = {k: sorted(v) for k, v in anchors_by_book.items()}
 
         insert_rows = []
         for book, chapter, verse_start, _position, text in hrows:
-            starts = anchors[(book, chapter)]
-            idx = starts.index(verse_start)
-            if idx + 1 < len(starts):
-                verse_end = starts[idx + 1] - 1
+            points = anchors_by_book[book]
+            idx = points.index((chapter, verse_start))
+            if idx + 1 < len(points):
+                end_chapter, next_verse_start = points[idx + 1]
+                if next_verse_start > 1:
+                    verse_end = next_verse_start - 1
+                else:
+                    end_chapter -= 1
+                    verse_end = max_verse.get((book, end_chapter), next_verse_start)
             else:
-                verse_end = max_verse.get((book, chapter), verse_start)
+                end_chapter = max_chapter.get(book, chapter)
+                verse_end = max_verse.get((book, end_chapter), verse_start)
             insert_rows.append(
                 (
                     book_id_by_source_name[book],
                     chapter,
                     verse_start,
-                    chapter,
+                    end_chapter,
                     verse_end,
                     clean_text(text),
                     tid[code],
@@ -329,6 +344,16 @@ def selfcheck(db: sqlite3.Connection) -> None:
         (esv,),
     ).fetchone()
     assert john11_heading and john11_heading[0] == "The Word Became Flesh"
+    # Romans 9:30 ESV heading ("Israel's Unbelief") must cross into chapter 10
+    # (ends at 10:4, right before the next ESV heading at 10:5) — regression
+    # check for the "next heading anywhere in the book" range computation
+    # above, not just within the current chapter.
+    romans_930 = db.execute(
+        "SELECT end_chapter, verse_end FROM section_headings "
+        "WHERE book_id=45 AND chapter=9 AND verse_start=30 AND translation_id=?",
+        (esv,),
+    ).fetchone()
+    assert romans_930 == (10, 4), f"Romans 9:30 ESV heading range wrong: {romans_930}"
 
 
 def load_dotenv(path: Path) -> None:
