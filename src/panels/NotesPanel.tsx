@@ -470,9 +470,10 @@ export function NotesPanel({ api, params }: IDockviewPanelProps<NotesParams>) {
             {selectedNote.tags.map((t) => (
               <span
                 key={t}
-                className="flex items-center gap-1 py-px pl-1.5 pr-1 rounded-full bg-accent-tint text-accent text-(length:--text-2xs)"
+                title={t}
+                className="flex items-center gap-1 py-px pl-1.5 pr-1 rounded-full bg-accent-tint text-accent text-(length:--text-2xs) max-w-[140px] shrink-0"
               >
-                {t}
+                <span className="truncate">{t}</span>
                 <button
                   type="button"
                   className="flex items-center justify-center rounded-(--radius-full) text-accent hover:text-ink"
