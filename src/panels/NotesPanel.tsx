@@ -11,14 +11,16 @@ import { Menu } from "../workspace/Menu";
 import {
   BulletListIcon,
   CardsIcon,
+  CheckIcon,
   CloseIcon,
   ICON,
   MenuIcon,
   MoreIcon,
   PlusIcon,
+  SortIcon,
 } from "../workspace/icons";
 import { useArrowScroll } from "../workspace/useArrowScroll";
-import { sectionHeadingsForChapter } from "../api";
+import { sectionHeadingsForChapter, type Book } from "../api";
 import { booksForAnchors, parseAnchor, type Note } from "./notes/notes";
 import { NotebookMenu } from "./notes/NotebookMenu";
 import { NotesCardGrid } from "./notes/NotesCardGrid";
@@ -29,6 +31,30 @@ import { NotesFilterMenu } from "./notes/NotesFilterMenu";
 
 export interface NotesParams {
   noteId?: string;
+}
+
+// [book index, chapter, verse] of a note's earliest anchor in canonical
+// Bible order, for the "book order" sort — so anchors within the same book
+// still land in chapter/verse order rather than tying. Unanchored (or
+// unparseable) anchors rank last.
+type AnchorRank = [number, number, number];
+const UNANCHORED: AnchorRank = [Infinity, Infinity, Infinity];
+
+function anchorRank(note: Note, books: Book[]): AnchorRank {
+  let best = UNANCHORED;
+  for (const raw of note.anchors) {
+    const ref = parseAnchor(raw, books);
+    if (!ref) continue;
+    const idx = books.findIndex((b) => b.id === ref.bookId);
+    if (idx === -1) continue;
+    const key: AnchorRank = [idx, ref.chapterStart, ref.verseStart ?? 0];
+    if (compareAnchorRank(key, best) < 0) best = key;
+  }
+  return best;
+}
+
+function compareAnchorRank(a: AnchorRank, b: AnchorRank): number {
+  return a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
 }
 
 export function NotesPanel({ api, params }: IDockviewPanelProps<NotesParams>) {
@@ -235,8 +261,25 @@ export function NotesPanel({ api, params }: IDockviewPanelProps<NotesParams>) {
           return false;
         return true;
       })
-      .sort((a, b) => (a.modified < b.modified ? 1 : -1));
-  }, [notes, query, selectedTags, bookIds, selectedNotebooks, ws.books]);
+      .sort((a, b) => {
+        if (ws.notesSortBy === "book") {
+          const cmp = compareAnchorRank(
+            anchorRank(a, ws.books),
+            anchorRank(b, ws.books),
+          );
+          if (cmp !== 0) return cmp;
+        }
+        return a.modified < b.modified ? 1 : -1;
+      });
+  }, [
+    notes,
+    query,
+    selectedTags,
+    bookIds,
+    selectedNotebooks,
+    ws.books,
+    ws.notesSortBy,
+  ]);
 
   return (
     <div className="panel">
@@ -273,6 +316,30 @@ export function NotesPanel({ api, params }: IDockviewPanelProps<NotesParams>) {
           onToggleNotebook={toggleNotebook}
           onClear={clearFilters}
         />
+        <Menu
+          triggerClassName="iconbtn"
+          title="Sort notes"
+          items={[
+            {
+              label: "Last modified",
+              icon:
+                ws.notesSortBy === "modified" ? (
+                  <CheckIcon size={ICON.xs} />
+                ) : undefined,
+              onSelect: () => ws.setNotesSortBy("modified"),
+            },
+            {
+              label: "Book order",
+              icon:
+                ws.notesSortBy === "book" ? (
+                  <CheckIcon size={ICON.xs} />
+                ) : undefined,
+              onSelect: () => ws.setNotesSortBy("book"),
+            },
+          ]}
+        >
+          <SortIcon size={ICON.md} />
+        </Menu>
         {!selectedNote && (
           <div
             className="seg seg--icon shrink-0"

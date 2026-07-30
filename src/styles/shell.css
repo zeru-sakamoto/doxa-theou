@@ -77,6 +77,15 @@
   .selection-toolbar__btn:hover {
     @apply bg-accent-tint;
   }
+  .selection-toolbar__btn:disabled {
+    @apply opacity-45 cursor-default;
+  }
+  .selection-toolbar__btn:disabled:hover {
+    @apply bg-transparent;
+  }
+  .selection-toolbar__sep {
+    @apply w-px h-5 mx-0.5 bg-border;
+  }
 
   .panel {
     @apply h-full flex flex-col bg-bg text-ink overflow-hidden;
@@ -155,6 +164,51 @@
      (.seg__btn's default padding is sized for wider popover contexts). */
   .seg--icon .seg__btn {
     @apply px-1.5 py-1;
+  }
+
+  /* Native range input styled to match the token system (Settings' note
+     reading-width control). Track/thumb pseudo-elements can't be reached by
+     one shared selector across engines, so WebKit/Gecko are set separately;
+     both point at the same tokens so they render identically. */
+  .slider {
+    @apply appearance-none w-[140px] h-1 rounded-full bg-border cursor-pointer;
+  }
+  .slider:focus-visible {
+    @apply outline-none shadow-[0_0_0_2px_var(--accent-tint-strong)];
+  }
+  .slider::-webkit-slider-thumb {
+    @apply appearance-none w-3.5 h-3.5 rounded-full bg-accent border border-border-strong cursor-pointer;
+  }
+  .slider::-moz-range-thumb {
+    @apply w-3.5 h-3.5 rounded-full bg-accent border border-border-strong cursor-pointer;
+  }
+  .slider::-moz-range-track {
+    @apply h-1 rounded-full bg-border;
+  }
+
+  /* Note-anchor row (NotesAnchorBar.tsx) — tinted with the note's own color
+     (--anchor-color, set inline per row) rather than a fixed accent, so a
+     note's anchors match its color-dot/highlight color. Mirrors --accent-
+     tint/--accent-tint-strong's 10%/16% opacity steps, just against a
+     variable color instead of the fixed accent. */
+  .anchor-row {
+    background: color-mix(in srgb, var(--anchor-color) 10%, transparent);
+  }
+  /* The tag text ("Romans 1:14–…") can't use --anchor-color raw: those
+     swatches are tuned for a translucent background wash (see the rule
+     above), not as a foreground color — in dark mode they're deliberately
+     dark/muted and read as near-invisible on the dark editor background; in
+     light mode they're pastel-light, equally low-contrast on a light
+     background. Blending 40% toward --text (the theme's real foreground ink)
+     keeps the hue recognizable while clearing 4.5:1 (WCAG AA) for every
+     swatch across all three palettes (koine/manuscript/vivid) in both
+     themes — verified numerically, not eyeballed; vivid's "yellow" is the
+     tightest margin. */
+  .anchor-row__tag {
+    color: color-mix(in srgb, var(--anchor-color) 40%, var(--text) 60%);
+  }
+  .anchor-row--nav:hover {
+    background: color-mix(in srgb, var(--anchor-color) 16%, transparent);
   }
 
   /* dockview-theme-vs is rendered internally by dockview-react — we don't

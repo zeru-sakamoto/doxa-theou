@@ -37,6 +37,11 @@ export type PaletteId = "koine" | "manuscript" | "vivid";
 // Preferred layout for the full-width note list shown when no note is open.
 export type NotesListDisplay = "cards" | "bars";
 
+// Note-list ordering: "modified" (last-edited first, the long-standing
+// default) or "book" (canonical Bible order of each note's earliest-touched
+// anchor, via `book[0]`; unanchored notes sort last).
+export type NotesSortBy = "modified" | "book";
+
 export interface Palette {
   id: PaletteId;
   name: string;

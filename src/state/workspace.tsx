@@ -18,7 +18,11 @@ import {
   listBooks,
   listTranslations,
 } from "../api";
-import type { NotesListDisplay, PaletteId } from "../panels/notes/notes";
+import type {
+  NotesListDisplay,
+  NotesSortBy,
+  PaletteId,
+} from "../panels/notes/notes";
 
 export type Theme = "light" | "dark";
 export type NotesSplitSide = "left" | "right" | "active";
@@ -35,6 +39,9 @@ export interface LastReaderPosition {
 }
 
 export const DEFAULT_NOTES_HIGHLIGHT_COLOR = "var(--highlight-indigo)";
+export const NOTES_READING_WIDTH_MIN = 60;
+export const NOTES_READING_WIDTH_MAX = 120;
+const DEFAULT_NOTES_READING_WIDTH = 90;
 
 interface WorkspaceCtx {
   theme: Theme;
@@ -60,12 +67,16 @@ interface WorkspaceCtx {
   setNotesLastColor: (c: string | undefined) => void;
   notesFolder: string | null;
   setNotesFolder: (p: string | null) => void;
+  notesReadingWidth: number;
+  setNotesReadingWidth: (ch: number) => void;
   anchorPalette: PaletteId;
   setAnchorPalette: (p: PaletteId) => void;
   notesSplitSide: NotesSplitSide;
   setNotesSplitSide: (s: NotesSplitSide) => void;
   notesListDisplay: NotesListDisplay;
   setNotesListDisplay: (d: NotesListDisplay) => void;
+  notesSortBy: NotesSortBy;
+  setNotesSortBy: (s: NotesSortBy) => void;
 }
 
 const Ctx = createContext<WorkspaceCtx | null>(null);
@@ -74,10 +85,12 @@ const DEFAULT_TRANSLATION_KEY = "doxa-default-translation";
 const NOTES_HIGHLIGHT_COLOR_KEY = "doxa-notes-highlight-color";
 const NOTES_LAST_COLOR_KEY = "doxa-notes-last-color";
 const NOTES_FOLDER_KEY = "doxa-notes-folder";
+const NOTES_READING_WIDTH_KEY = "doxa-notes-reading-width";
 const ANCHOR_PALETTE_KEY = "doxa-anchor-palette";
 const LAST_READER_POSITION_KEY = "doxa-last-reader-position";
 const NOTES_SPLIT_SIDE_KEY = "doxa-notes-split-side";
 const NOTES_LIST_DISPLAY_KEY = "doxa-notes-list-display";
+const NOTES_SORT_BY_KEY = "doxa-notes-sort-by";
 
 function initialLastReaderPosition(): LastReaderPosition | null {
   const raw = localStorage.getItem(LAST_READER_POSITION_KEY);
@@ -99,6 +112,13 @@ function initialLastReaderPosition(): LastReaderPosition | null {
     /* fall through to null */
   }
   return null;
+}
+
+function clampReadingWidth(ch: number): number {
+  return Math.min(
+    NOTES_READING_WIDTH_MAX,
+    Math.max(NOTES_READING_WIDTH_MIN, ch),
+  );
 }
 
 function initialTheme(): Theme {
@@ -132,6 +152,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [notesFolder, setNotesFolderState] = useState<string | null>(() =>
     localStorage.getItem(NOTES_FOLDER_KEY),
   );
+  const [notesReadingWidth, setNotesReadingWidthState] = useState<number>(() =>
+    clampReadingWidth(
+      Number(localStorage.getItem(NOTES_READING_WIDTH_KEY)) ||
+        DEFAULT_NOTES_READING_WIDTH,
+    ),
+  );
   const [userDefaultTranslation, setUserDefaultTranslationState] = useState<
     string | null
   >(() => localStorage.getItem(DEFAULT_TRANSLATION_KEY));
@@ -148,6 +174,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         (localStorage.getItem(NOTES_LIST_DISPLAY_KEY) as NotesListDisplay) ||
         "bars",
     );
+  const [notesSortBy, setNotesSortByState] = useState<NotesSortBy>(
+    () =>
+      (localStorage.getItem(NOTES_SORT_BY_KEY) as NotesSortBy) || "modified",
+  );
 
   // Apply + persist theme (before paint to avoid a flash).
   useLayoutEffect(() => {
@@ -196,6 +226,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     if (p) localStorage.setItem(NOTES_FOLDER_KEY, p);
     else localStorage.removeItem(NOTES_FOLDER_KEY);
   }, []);
+  const setNotesReadingWidth = useCallback((ch: number) => {
+    const clamped = clampReadingWidth(ch);
+    setNotesReadingWidthState(clamped);
+    localStorage.setItem(NOTES_READING_WIDTH_KEY, String(clamped));
+  }, []);
   const setDefaultTranslation = useCallback((code: string) => {
     setUserDefaultTranslationState(code);
     localStorage.setItem(DEFAULT_TRANSLATION_KEY, code);
@@ -211,6 +246,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const setNotesListDisplay = useCallback((d: NotesListDisplay) => {
     setNotesListDisplayState(d);
     localStorage.setItem(NOTES_LIST_DISPLAY_KEY, d);
+  }, []);
+  const setNotesSortBy = useCallback((s: NotesSortBy) => {
+    setNotesSortByState(s);
+    localStorage.setItem(NOTES_SORT_BY_KEY, s);
   }, []);
   const setLastReaderPosition = useCallback((p: LastReaderPosition | null) => {
     setLastReaderPositionState(p);
@@ -251,12 +290,16 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setNotesLastColor,
       notesFolder,
       setNotesFolder,
+      notesReadingWidth,
+      setNotesReadingWidth,
       anchorPalette,
       setAnchorPalette,
       notesSplitSide,
       setNotesSplitSide,
       notesListDisplay,
       setNotesListDisplay,
+      notesSortBy,
+      setNotesSortBy,
     }),
     [
       theme,
@@ -280,12 +323,16 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setNotesLastColor,
       notesFolder,
       setNotesFolder,
+      notesReadingWidth,
+      setNotesReadingWidth,
       anchorPalette,
       setAnchorPalette,
       notesSplitSide,
       setNotesSplitSide,
       notesListDisplay,
       setNotesListDisplay,
+      notesSortBy,
+      setNotesSortBy,
     ],
   );
 

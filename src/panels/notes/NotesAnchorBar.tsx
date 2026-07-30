@@ -9,6 +9,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { chapterCount, getChapter, type Book } from "../../api";
@@ -91,6 +92,10 @@ interface Props {
   draft: string | null;
   onConfirm: (value: string) => void;
   onCancel: () => void;
+  // The note's own color (falls back to the app default upstream) — anchor
+  // rows are tinted with it so a note's anchors visually match its notes-list
+  // color dot and its in-editor highlight color.
+  color: string;
 }
 
 export function NotesAnchorBar({
@@ -99,13 +104,14 @@ export function NotesAnchorBar({
   draft,
   onConfirm,
   onCancel,
+  color,
 }: Props) {
   if (anchors.length === 0 && draft === null) return null;
 
   return (
     <div className="flex flex-col gap-1.5 px-3">
       {anchors.map((a) => (
-        <AnchorRow key={a} anchor={a} onRemove={onRemove} />
+        <AnchorRow key={a} anchor={a} onRemove={onRemove} color={color} />
       ))}
       {draft !== null && (
         <AnchorComposer
@@ -121,9 +127,11 @@ export function NotesAnchorBar({
 function AnchorRow({
   anchor,
   onRemove,
+  color,
 }: {
   anchor: string;
   onRemove: (a: string) => void;
+  color: string;
 }) {
   const ws = useWorkspace();
   const dock = useDock();
@@ -189,11 +197,12 @@ function AnchorRow({
       onClick={parsed ? navigate : undefined}
       onKeyDown={onKeyDown}
       className={
-        "flex items-center gap-2 px-3 py-1.5 rounded-(--radius-md) bg-accent-tint transition-colors" +
-        (parsed ? " cursor-pointer hover:bg-accent-tint-strong" : "")
+        "anchor-row flex items-center gap-2 px-3 py-1.5 rounded-(--radius-md) transition-colors" +
+        (parsed ? " anchor-row--nav cursor-pointer" : "")
       }
+      style={{ "--anchor-color": color } as CSSProperties}
     >
-      <span className="shrink-0 font-(family-name:--font-mono) text-(length:--text-xs) font-semibold text-accent">
+      <span className="anchor-row__tag shrink-0 font-(family-name:--font-mono) text-(length:--text-xs) font-semibold">
         {anchor}
       </span>
       <span className="flex-1 min-w-0 overflow-hidden whitespace-nowrap text-ellipsis font-(family-name:--font-serif) text-(length:--text-xs) text-muted">

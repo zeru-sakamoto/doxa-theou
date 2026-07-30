@@ -1,9 +1,13 @@
 // A note's summary content — title/preview, tag pills, anchors — shared by
 // the sidebar drawer, the inline full-width bars list, and the card grid, so
 // there's one definition of what a note "row" looks like.
+import { useWorkspace } from "../../state/workspace";
 import { formatModified, notePreview, type Note } from "./notes";
 
 export function NoteRowContent({ note }: { note: Note }) {
+  // Sorted by book order: anchors are the sort key the user is scanning by,
+  // so give them the row instead of splitting space with the modified date.
+  const sortedByBook = useWorkspace().notesSortBy === "book";
   return (
     <>
       <span className="flex items-center gap-1.5 text-(length:--text-sm) font-medium text-ink">
@@ -33,9 +37,11 @@ export function NoteRowContent({ note }: { note: Note }) {
         <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
           {note.anchors.join(" · ")}
         </span>
-        <span className="ml-auto shrink-0 tabular-nums">
-          {formatModified(note.modified)}
-        </span>
+        {!sortedByBook && (
+          <span className="ml-auto shrink-0 tabular-nums">
+            {formatModified(note.modified)}
+          </span>
+        )}
       </span>
     </>
   );

@@ -2,18 +2,22 @@
 // preferences, and the anchor-highlight palette (drives note colors + the
 // editor's default highlight; see notes.ts / tokens.css).
 import { useState } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import { importBibleDb, importLogosNotes, type ImportSummary } from "../api";
 import { useNotes } from "../state/notes";
 import { useWorkspace } from "../state/workspace";
 import { ICON, MoonIcon, SunIcon } from "../workspace/icons";
 import { HIGHLIGHT_PALETTES, paletteById, type PaletteId } from "./notes/notes";
+import {
+  NOTES_READING_WIDTH_MAX,
+  NOTES_READING_WIDTH_MIN,
+} from "../state/workspace";
 
 export function SettingsPanel() {
   const ws = useWorkspace();
   const { refreshNotes, lastImportedIds, recordImport, revertImport } =
     useNotes();
-  const swatches = paletteById(ws.anchorPalette).swatches;
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [importingLogos, setImportingLogos] = useState(false);
@@ -39,6 +43,13 @@ export function SettingsPanel() {
     setImportError(null);
     try {
       await importBibleDb(file);
+      // The native file dialog above can leave the frameless (decorations:
+      // false) webview window unfocused/un-foregrounded on Windows;
+      // reloading immediately afterward can leave stale paint on screen that
+      // visually overlaps the header until something forces a repaint.
+      // Refocusing first (and awaiting it) gives the window a tick to
+      // resettle before the full navigation fires.
+      await getCurrentWindow().setFocus();
       window.location.reload();
     } catch (e) {
       setImportError(String(e));
@@ -221,34 +232,28 @@ export function SettingsPanel() {
             </div>
           </div>
           <div className="flex items-center justify-between gap-3 py-2">
-            <span className="text-(length:--text-sm)">
-              Default highlight color
-            </span>
-            <div
-              className="flex gap-2"
-              role="group"
-              aria-label="Notes highlight color"
-            >
-              {swatches.map((s) => {
-                const value = `var(${s.var})`;
-                return (
-                  <button
-                    key={s.var}
-                    type="button"
-                    title={s.name}
-                    aria-label={`Use ${s.name} as the default notes highlight color`}
-                    aria-pressed={ws.notesHighlightColor === value}
-                    onClick={() => ws.setNotesHighlightColor(value)}
-                    className={
-                      "w-[22px] h-[22px] rounded-full border" +
-                      (ws.notesHighlightColor === value
-                        ? " border-ink ring-2 ring-offset-2 ring-offset-bg ring-ink"
-                        : " border-border")
-                    }
-                    style={{ background: value }}
-                  />
-                );
-              })}
+            <div className="flex flex-col">
+              <span className="text-(length:--text-sm)">Reading width</span>
+              <span className="panel__muted">
+                Max line width of the note editor
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                className="slider"
+                min={NOTES_READING_WIDTH_MIN}
+                max={NOTES_READING_WIDTH_MAX}
+                step={5}
+                value={ws.notesReadingWidth}
+                onChange={(e) =>
+                  ws.setNotesReadingWidth(Number(e.target.value))
+                }
+                aria-label="Note reading width"
+              />
+              <span className="w-[5ch] shrink-0 text-right text-(length:--text-xs) font-(family-name:--font-mono) text-muted">
+                {ws.notesReadingWidth}ch
+              </span>
             </div>
           </div>
           <div className="flex items-center justify-between gap-3 py-2">

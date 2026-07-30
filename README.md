@@ -8,10 +8,14 @@ The Reader panel shows one chapter at a time (no continuous scroll); you move
 between chapters via the TOC drawer, ⌘K, a note anchor, or the chapter up/down
 buttons, which roll across book boundaries. Selecting verse text shows a
 floating menu to copy it as plain text, as a Markdown blockquote citation, or
-just its reference (e.g. "Romans 10:5-7").
+just its reference (e.g. "Romans 10:5-7") — plus, set apart from those, an
+"Add Anchor" action that anchors the selection to whichever note is
+currently open, on either side of the dock.
 
 The Notes panel has a searchable, filterable note list (by tag, book, or
-notebook), each row showing its last-modified date and time.
+notebook), each row showing its last-modified date and time, sortable by last
+modified or by canonical Bible book order (for anchored notes) via the sort
+menu next to the filter icon.
 Opening a Notes tab with no note selected shows that list at full panel
 width — as cards or full-width bars, a preference toggled in the header —
 instead of a blank editor. Notes are Markdown files with frontmatter, edited

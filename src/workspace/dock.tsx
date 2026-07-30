@@ -294,6 +294,9 @@ interface DockCtx {
     verse?: number,
     translation?: string,
   ) => void;
+  /** The note open in the active Notes panel, falling back to the first
+   * Notes panel (of either side) with one open — undefined if none. */
+  getActiveNoteId: () => string | undefined;
   saveLayout: () => void;
   resetLayout: () => void;
   register: (api: DockviewApi) => void;
@@ -323,6 +326,26 @@ export function DockProvider({ children }: { children: ReactNode }) {
       // Prefer joining an existing reader group as a tab over that, so
       // opening another translation doesn't land among notes tabs.
       const existingReader = api.panels.find((p) => p.id.startsWith("reader-"));
+      let position:
+        | {
+            referencePanel: IDockviewPanel;
+            direction: "left" | "right" | "within";
+          }
+        | undefined;
+      if (existingReader) {
+        position = { referencePanel: existingReader, direction: "within" };
+      } else if (notesSplitSide === "left" || notesSplitSide === "right") {
+        // The user explicitly chose a side for Notes — put the first Reader
+        // on the opposite side instead of wherever dockview would otherwise
+        // default it (typically tabbed into the active, i.e. Notes, group).
+        const notePanel = api.panels.find((p) => p.id.startsWith("notes-"));
+        if (notePanel) {
+          position = {
+            referencePanel: notePanel,
+            direction: notesSplitSide === "left" ? "right" : "left",
+          };
+        }
+      }
       api.addPanel({
         id: `reader-${++idRef.current}`,
         component: "reader",
@@ -334,12 +357,10 @@ export function DockProvider({ children }: { children: ReactNode }) {
         // (e.g. "Duplicate tab"). 'always' keeps it mounted (off-screen)
         // instead, so switching back restores exactly where it was.
         renderer: "always",
-        ...(existingReader && {
-          position: { referencePanel: existingReader, direction: "within" },
-        }),
+        ...(position && { position }),
       });
     },
-    [],
+    [notesSplitSide],
   );
 
   const register = useCallback((api: DockviewApi) => {
@@ -491,6 +512,23 @@ export function DockProvider({ children }: { children: ReactNode }) {
     [addReader, defaultTranslation],
   );
 
+  const getActiveNoteId = useCallback(() => {
+    const api = apiRef.current;
+    if (!api) return undefined;
+    const noteIdOf = (p: IDockviewPanel) =>
+      (p.params as NotesParams | undefined)?.noteId;
+    if (api.activePanel?.id.startsWith("notes-")) {
+      const id = noteIdOf(api.activePanel);
+      if (id) return id;
+    }
+    for (const p of api.panels) {
+      if (!p.id.startsWith("notes-")) continue;
+      const id = noteIdOf(p);
+      if (id) return id;
+    }
+    return undefined;
+  }, []);
+
   const saveLayout = useCallback(() => {
     const api = apiRef.current;
     if (!api) return;
@@ -512,6 +550,7 @@ export function DockProvider({ children }: { children: ReactNode }) {
       openNotes,
       openSingleton,
       gotoReference,
+      getActiveNoteId,
       saveLayout,
       resetLayout,
       register,
@@ -521,6 +560,7 @@ export function DockProvider({ children }: { children: ReactNode }) {
       openNotes,
       openSingleton,
       gotoReference,
+      getActiveNoteId,
       saveLayout,
       resetLayout,
       register,

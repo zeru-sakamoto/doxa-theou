@@ -143,22 +143,22 @@ src/
     HomePanel.tsx          landing view: quick actions + recently-edited notes; also the dockview watermark
     ReaderPanel.tsx        scripture reader (one translation per panel), shows one chapter at a time
     reader/ChapterView.tsx renders a chapter's verses split into heading segments, rows/paragraph flow modes
-    reader/SelectionToolbar.tsx  floating Copy/Copy Blockquote menu shown on verse-text selection
+    reader/SelectionToolbar.tsx  floating Copy/Copy Blockquote/Add Anchor menu shown on verse-text selection, portaled to document.body
     reader/selectionCopy.ts      formats a selected verse span into plain-text or blockquote Markdown
     reader/TocDrawer.tsx   in-panel book/chapter navigator
-    NotesPanel.tsx         header (list/search/filter/display-toggle/color/⋯) + editor host; no note selected → full-width list instead of the editor
+    NotesPanel.tsx         header (list/search/filter/sort/display-toggle/color/⋯) + editor host; no note selected → full-width list instead of the editor
     notes/NotesDrawer.tsx  note list, two variants: "sidebar" (collapsible column beside an open note) and "inline" (full-width, no note open); Ctrl/Cmd-click opens a note in a new background tab
     notes/NotesCardGrid.tsx    full-width card-grid layout for the same note list, alternative to NotesDrawer's "inline" bars variant
-    notes/NoteRowContent.tsx   one note's summary (color dot, title-or-preview, tag pills, anchors, last-modified date/time) shared by the sidebar, inline bars, and card grid
+    notes/NoteRowContent.tsx   one note's summary (color dot, title-or-preview, tag pills, anchors, last-modified date/time — hidden when sorted by book order) shared by the sidebar, inline bars, and card grid
     notes/NotesFilterMenu.tsx  tag (text) / book (multi-select) / notebook (multi-select, incl. "Uncategorized") filter popover
     notes/NotesColorMenu.tsx   per-note color swatch picker (header, left of ⋯)
     notes/NotebookMenu.tsx     per-note notebook picker (header)
     notes/NotesEditor.tsx      Tiptap editor host: toolbar, anchor bar, title input, content
     notes/NotesEditorToolbar.tsx  formatting toolbar, wraps by button-group when narrow
-    notes/NotesAnchorBar.tsx   verse-anchor rows + composer (autocomplete, keyboard nav, chapter/verse validation)
+    notes/NotesAnchorBar.tsx   verse-anchor rows + composer (autocomplete, keyboard nav, chapter/verse validation), tinted with the note's color
     notes/notes.ts         sample-notes loader/parser, shared highlight palette, notePreview()
     SearchPanel.tsx        Scripture (FTS) + Notes (client-side) result groups
-    SettingsPanel.tsx      theme toggle, default translation, Bible-database import, Logos-notes import (with undo), highlight palette, notes folder, notes-panel placement (Active/Left/Right)
+    SettingsPanel.tsx      theme toggle, default translation, Bible-database import, Logos-notes import (with undo), highlight palette, notes folder, note reading-width slider, notes-panel placement (Active/Left/Right)
 ```
 
 ---
@@ -232,6 +232,13 @@ additionally supports being manually split apart into a left group and a
 right group (drag a Notes tab out); when both exist, `openNotes` picks
 whichever side matches Settings ▸ Notes ▸ **Open notes on**, by comparing the
 two groups' DOM rects, rather than picking arbitrarily.
+
+The very first Reader (no Reader group open yet) uses that same preference in
+reverse: if **Open notes on** is explicitly **Left** or **Right** (not
+**Active**) and a Notes panel is already open, `addReader` places the new
+Reader on the opposite side via `position: { referencePanel: notePanel,
+direction: ... }`, instead of falling through to dockview's default (usually
+tabbing into whichever group is currently active, e.g. the open note).
 
 dockview's default tab renderer (`'onlyWhenVisible'`) physically detaches an
 inactive tab's content from the DOM and reattaches it when reactivated, which
@@ -337,19 +344,40 @@ narrowed to chapters, which is what was actually wanted.
 
 **Selection toolbar** (`reader/SelectionToolbar.tsx`). Selecting verse text
 inside the chapter container and releasing the mouse shows a small floating
-menu ("Copy" / "Copy Blockquote" / "Copy Reference") positioned near the
-cursor — it does not track live while dragging, only on `mouseup`. It always
-copies the **full text of every verse the selection touches** — found via
-`Range.intersectsNode` against each verse's `[data-verse]` element, not the
-literal substring under the cursor — since a chapter is always one
-book/chapter, that span is just the min/max touched verse number.
-`reader/selectionCopy.ts` formats the result: **Copy** is `**Book C:V-V**` +
-one `V text` line per verse; **Copy Blockquote** is `## Book C:V–V` (en dash)
+menu ("Copy" / "Copy Blockquote" / "Copy Reference", then a separator and
+"Add Anchor") positioned near the cursor — it does not track live while
+dragging, only on `mouseup`. It always acts on the **full text of every verse
+the selection touches** — found via `Range.intersectsNode` against each
+verse's `[data-verse]` element, not the literal substring under the cursor —
+since a chapter is always one book/chapter, that span is just the min/max
+touched verse number. `reader/selectionCopy.ts` formats the copy variants:
+**Copy** is `**Book C:V-V**` + one `V text` line per verse; **Copy
+Blockquote** is `## Book C:V–V` (en dash) + one ``> **`V`** text`` line per
+verse; **Copy Reference** is just `Book C:V-V`. Copies via
+`navigator.clipboard.writeText`, no Tauri clipboard plugin needed.
 
-- one `> **\`V\`** text`blockquote line per verse; **Copy Reference** is
-just`Book C:V-V`. Dismissal is entirely selection-driven — a `mousedown`outside the toolbar hides it, and it only reappears on the next`mouseup`if`selectionchange`actually fired during that gesture (otherwise an unrelated
-click would re-show it for a stale, untouched browser selection) — plus`Escape`. Copies via `navigator.clipboard.writeText`, no Tauri clipboard
-  plugin needed.
+**Add Anchor** reuses `buildReferenceCopy`'s `Book C:V-V` string — already
+the exact format `parseAnchor` (`notes/notes.ts`) expects — and appends it to
+whichever note is currently open, found via `useDock`'s `getActiveNoteId()`
+(the active dockview panel's note if it's a Notes panel, else the first open
+Notes panel's, checked either side of the dock — see "Tab grouping" above).
+Disabled when no note is open. Mirrors `NotesPanel`'s own `confirmAnchor`
+(dedupe + recompute `book` via `booksForAnchors`) but does **not** replicate
+its passage-heading auto-title lookup, which is local to that panel.
+
+Dismissal is entirely selection-driven — a `mousedown` outside the toolbar
+hides it, and it only reappears on the next `mouseup` if `selectionchange`
+actually fired during that gesture (otherwise an unrelated click would
+re-show it for a stale, untouched browser selection) — plus `Escape`.
+
+The toolbar is rendered via `createPortal` straight into `document.body`
+rather than in place. dockview wraps every panel's content in a
+`.dv-render-overlay` div with `transform` + `contain: layout paint`, which
+makes that div the CSS containing block for `position: fixed` descendants
+and clips anything painted outside its own (possibly much narrower, e.g. a
+right-docked Reader) box — without the portal, a toolbar positioned near a
+panel's far edge could silently render clipped/hidden even though its
+`left`/`top` were computed against the full window.
 
 **TOC drawer** (`reader/TocDrawer.tsx`). Slides in over the Reader body
 (spring). Books are listed by testament as accordions; expanding a book reveals a
@@ -451,6 +479,24 @@ and `NotesCardGrid` both accept an optional `scrollRef` forwarded to their
 actual scrolling element). It's skipped while the editor's contenteditable
 has focus, so it never fights Tiptap's own cursor movement.
 
+**Sort menu**, right of the filter icon in the header: a plain `Menu.tsx`
+instance (no dedicated component — it's just a two-item action list), toggling
+between "Last modified" (the long-standing default, most-recent first) and
+"Book order" (canonical Bible order — book, then chapter, then verse — of
+each note's earliest anchor; notes with no parseable anchor sort last). The
+current choice gets a `CheckIcon` next to its label. Applied in `NotesPanel`'s
+`filtered` `useMemo` via `anchorRank()`/`compareAnchorRank()`, which re-parse
+every anchor with `parseAnchor()` (rather than trusting `book[0]`'s
+insertion-agnostic canonical order) so multi-anchor notes rank by their
+earliest verse, not just their earliest book. This is a **global** preference
+(`ws.notesSortBy`, persisted to localStorage like `notesListDisplay`) shared
+by every Notes tab and list variant (sidebar/inline/cards) — the Search
+panel's Notes-group results are unaffected, since that list is a plain filter
+with no sort applied. While sorted by book order, `NoteRowContent` also hides
+each row's last-modified date/time (reads `ws.notesSortBy` directly) so the
+anchors — the thing that ordering is scanned by — get the row's full width
+instead of splitting it with a now-less-relevant timestamp.
+
 Every header popover (`Menu.tsx`, `NotesFilterMenu`, `NotebookMenu`,
 `NotesColorMenu`) is fixed-width and anchors to a static left/right CSS edge,
 which can overflow a narrow/split dock panel. `workspace/useMenuAlign.ts`
@@ -466,7 +512,38 @@ resize while open.
   `@tiptap/markdown` for Markdown-in/out) drives block type, marks, lists,
   code, and link buttons. Buttons are grouped by divider; the bar wraps by
   whole group (never mid-cluster) when the panel narrows, e.g. with the note
-  list open.
+  list open. Spans the panel's full width regardless of the cap below (mirrors
+  the Reader's `reader__bar`, which likewise stays full-width above a capped
+  `ChapterView`).
+  - **Highlight color is CSS-driven, not baked per-mark**: `Highlight` in
+    `NotesEditor.tsx` is configured _without_ `multicolor` — every highlight
+    in the editor is a plain, attribute-less `<mark>` (`toggleHighlight()`
+    in the toolbar takes no color arg), and its background comes purely from
+    `--editor-highlight-bg` in `notes-editor.css`. `NotesEditor.tsx` sets
+    that custom property inline on `EditorContent`'s `style` to the note's
+    current `highlightColor`, so it's recomputed on every render. The result:
+    changing a note's color (`NotesColorMenu`) instantly recolors _every_
+    highlight already in that note, old or new, with no "stuck on a stale
+    color" case — there's no per-mark color attribute to go stale, and
+    correspondingly no attrs-mismatch to worry about on unset either (an
+    earlier version stored `color` per-mark via `multicolor: true`, which
+    is why an older approach here branched on `state.highlight` to force
+    unset; that's gone along with the per-mark color).
+- **Reading width**: the anchor bar/title/body column (everything below the
+  toolbar) is capped at `ws.notesReadingWidth` ch (inline `style`, not a
+  Tailwind class, since it's a user setting rather than a fixed value) so a
+  fully-open, unsplit Notes panel doesn't stretch note text edge-to-edge —
+  wider by default (90ch) than `reader/ChapterView.tsx`'s fixed 70ch Reader
+  cap, since notes are denser, less purely-prose, and the editor toolbar
+  wants more room. User-adjustable in Settings → Notes → **Reading width**
+  (a native `<input type="range">`, `.slider` in `shell.css`, 60-120ch,
+  step 5; state + localStorage persistence in `state/workspace.tsx`'s
+  `notesReadingWidth`/`setNotesReadingWidth`, clamped to
+  `NOTES_READING_WIDTH_MIN`/`MAX`). The cap sits on an inner wrapper, not the
+  `overflow-auto` scroll container itself, so the vertical scrollbar still
+  hugs the panel's true right edge instead of floating in the middle of a
+  wide panel. Splitting the panel narrower than the configured width makes
+  the cap a no-op — content already fills the available width.
 - **Markdown paste**: `useEditor`'s `editorProps.handlePaste` intercepts
   clipboard content that has no `text/html` payload (plain text — e.g. the
   Reader's Copy / Copy Blockquote / Copy Reference output) and routes it
@@ -476,6 +553,13 @@ resize while open.
   Clipboard content that does carry HTML (copied from a webpage, another rich
   editor, etc.) still goes through ProseMirror's normal HTML-paste path,
   unaffected.
+- **Tab-to-indent**: a local `tabIndent` extension (last in the extensions
+  list, so `ListItem`/`TaskItem`'s own Tab-to-sink/Shift-Tab-to-lift get first
+  refusal) handles Tab/Shift-Tab outside of lists. Inside a code block it
+  inserts/removes a real tab; everywhere else it inserts/removes 4 non-
+  breaking spaces rather than real spaces/a tab, since Markdown reads 4
+  leading spaces or a tab on a fresh line as an indented code block — NBSP
+  round-trips as plain text without triggering that.
 - **Anchor bar** (`NotesAnchorBar.tsx`): existing anchors render as
   clickable rows with a live passage preview (fetched via `get_chapter`) that
   jump the active Reader. Composing a new anchor (`Add anchor`) gets a
@@ -485,13 +569,33 @@ resize while open.
   and verse suggestions by a live `get_chapter()` fetch for the typed
   chapter. Arrow keys move the highlight, Tab accepts the first suggestion,
   and an out-of-range chapter/verse (or an end-verse below the start) blocks
-  confirm with an inline error.
+  confirm with an inline error. Each row is tinted with the note's current
+  color instead of the fixed accent: `NotesEditor.tsx` passes `highlightColor`
+  down as a `color` prop, `AnchorRow` sets it as an inline `--anchor-color`
+  custom property on the row, and `.anchor-row`/`.anchor-row--nav:hover` in
+  `shell.css` mix it into a background wash at the same 10%/16% opacity steps
+  `--accent-tint`/`--accent-tint-strong` use for the fixed-accent case
+  elsewhere, just against a variable color instead of the accent. The
+  reference tag's text (e.g. "Romans 1:14–…") does _not_ read `--anchor-color`
+  raw, though — same reasoning as the highlight-color note above: these
+  swatches are tuned for a translucent background wash, not as a foreground
+  color, so raw they're low-contrast against the editor background in both
+  themes. `.anchor-row__tag` instead blends 40% toward `--text` (the theme's
+  real foreground ink) via `color-mix()`, which clears 4.5:1 (WCAG AA) for
+  every swatch across all three palettes in both themes (verified
+  numerically; vivid's "yellow" is the tightest margin).
 - **Title input**: optional; an empty title falls back to the body preview
   in the list card (see `notePreview()` above).
-- **Color**: `NotesColorMenu.tsx` picks from the same 7-hue palette as
-  Settings' default highlight color (now exported as
-  `notes/notes.ts`'s `NOTES_HIGHLIGHT_SWATCHES`, shared by both). Picking a
-  color updates `ws.notesLastColor` (persisted), which new notes default to.
+- **Color**: `NotesColorMenu.tsx` picks from the same 7-hue palette used
+  elsewhere (now exported as `notes/notes.ts`'s `NOTES_HIGHLIGHT_SWATCHES`).
+  Picking a color updates `ws.notesLastColor` (persisted), which new notes
+  default to. The open note's own `note.color` (falling back to
+  `ws.notesHighlightColor`, a fixed internal default — there's no longer a
+  Settings UI to change it, see §6 SettingsPanel note below — when the note
+  has no color of its own) is what the toolbar's Highlight button, the
+  highlight background, and the anchor rows above are all tinted with — not
+  a user-configurable global default — so each note's coloring tracks
+  whatever color that note is tagged with, consistently everywhere.
 
 ---
 
@@ -567,9 +671,14 @@ against.
   size, and `minWidth`/`minHeight`.
 - `src-tauri/capabilities/default.json` grants window permissions:
   `allow-minimize`, `allow-maximize`, `allow-unmaximize`, `allow-toggle-maximize`,
-  `allow-is-maximized`, `allow-close`, `allow-start-dragging`.
+  `allow-is-maximized`, `allow-close`, `allow-start-dragging`, `allow-set-focus`.
 - `Header.tsx` drives controls via `getCurrentWindow()` (`.minimize()`,
   `.toggleMaximize()`, `.close()`), all guarded so they no-op outside Tauri.
+- `SettingsPanel.tsx`'s DB importer also uses `getCurrentWindow().setFocus()`
+  (see §4 in `architecture.md`) — dismissing the native file-picker dialog on
+  this frameless window can leave the webview unfocused, and reloading
+  immediately after left stale paint overlapping the header; refocusing first
+  gives it a tick to resettle before the full navigation.
 
 An inline script in `index.html` applies the saved/system theme before first
 paint to avoid a flash, and `index.html` also renders a static "Doxa Theou"

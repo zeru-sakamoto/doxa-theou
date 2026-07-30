@@ -20,7 +20,7 @@ site-content
 /db/
 
 # Notes Data
-logos-to-doxa-md/
+import-examples/
 
 # Editor directories and files
 .vscode/*

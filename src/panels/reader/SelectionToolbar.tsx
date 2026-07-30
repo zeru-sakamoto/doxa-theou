@@ -5,9 +5,14 @@
 // substring), since verse text has no sub-string markup to preserve — see
 // selectionCopy.ts for the formats.
 import { useEffect, useRef, useState, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import type { Verse } from "../../api";
 import { DUR_FAST } from "../../motion";
+import { useDock } from "../../workspace/dock";
+import { useNotes } from "../../state/notes";
+import { useWorkspace } from "../../state/workspace";
+import { booksForAnchors } from "../notes/notes";
 import {
   buildBlockquoteCopy,
   buildPlainCopy,
@@ -38,11 +43,16 @@ export function SelectionToolbar({
   verses: Verse[];
   bookName: (id: number) => string;
 }) {
+  const dock = useDock();
+  const { notes, updateNote } = useNotes();
+  const { books } = useWorkspace();
   const [sel, setSel] = useState<ActiveSelection | null>(null);
   const [copied, setCopied] = useState<"plain" | "quote" | "reference" | null>(
     null,
   );
+  const [anchored, setAnchored] = useState(false);
   const copiedTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const anchoredTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
   const toolbarRef = useRef<HTMLDivElement>(null);
   // Whether the browser's Selection actually changed since the current
   // mousedown — a click that doesn't touch text (a button, empty chrome)
@@ -112,7 +122,36 @@ export function SelectionToolbar({
     return () => document.removeEventListener("keydown", onKey);
   }, [sel]);
 
-  useEffect(() => () => clearTimeout(copiedTimeout.current), []);
+  useEffect(() => {
+    return () => {
+      clearTimeout(copiedTimeout.current);
+      clearTimeout(anchoredTimeout.current);
+    };
+  }, []);
+
+  const activeNoteId = dock.getActiveNoteId();
+  const activeNote = activeNoteId
+    ? (notes.find((n) => n.id === activeNoteId) ?? null)
+    : null;
+
+  const handleAddAnchor = () => {
+    if (!sel || !activeNote) return;
+    const anchor = buildReferenceCopy(bookName(bookId), chapter, sel.verses);
+    if (!activeNote.anchors.includes(anchor)) {
+      const anchors = [...activeNote.anchors, anchor];
+      updateNote(activeNote.id, {
+        anchors,
+        book: booksForAnchors(anchors, books),
+      });
+    }
+    setAnchored(true);
+    clearTimeout(anchoredTimeout.current);
+    anchoredTimeout.current = setTimeout(() => {
+      setAnchored(false);
+      window.getSelection()?.removeAllRanges();
+      setSel(null);
+    }, COPIED_RESET_MS);
+  };
 
   const handleCopy = async (kind: "plain" | "quote" | "reference") => {
     if (!sel) return;
@@ -140,12 +179,23 @@ export function SelectionToolbar({
           Math.max(sel.x, EDGE_MARGIN),
           window.innerWidth - EDGE_MARGIN,
         ),
-        top: above ? sel.y - CURSOR_GAP : sel.y + CURSOR_GAP,
+        top: Math.min(
+          Math.max(
+            above ? sel.y - CURSOR_GAP : sel.y + CURSOR_GAP,
+            EDGE_MARGIN,
+          ),
+          window.innerHeight - EDGE_MARGIN,
+        ),
         transform: above ? "translate(-50%, -100%)" : "translate(-50%, 0)",
       }
     : undefined;
 
-  return (
+  // Portaled straight to <body> so "fixed" is actually viewport-relative —
+  // dockview wraps panel content in a `.dv-render-overlay` with `transform`
+  // + `contain: layout paint`, which otherwise becomes the containing block
+  // for `position: fixed` descendants and clips anything outside its own
+  // (possibly much narrower, e.g. a right-docked Reader) box.
+  return createPortal(
     <AnimatePresence>
       {sel && (
         <motion.div
@@ -183,8 +233,19 @@ export function SelectionToolbar({
           >
             {copied === "reference" ? "Copied" : "Copy Reference"}
           </button>
+          <div className="selection-toolbar__sep" />
+          <button
+            type="button"
+            role="menuitem"
+            className="selection-toolbar__btn"
+            disabled={!activeNote}
+            onClick={handleAddAnchor}
+          >
+            {anchored ? "Anchored" : "Add Anchor"}
+          </button>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }

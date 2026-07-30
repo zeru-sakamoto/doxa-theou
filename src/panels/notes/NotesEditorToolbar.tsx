@@ -31,13 +31,7 @@ const HEADING_LABEL: Record<number, string> = {
   4: "H4",
 };
 
-export function NotesEditorToolbar({
-  editor,
-  highlightColor,
-}: {
-  editor: Editor | null;
-  highlightColor: string;
-}) {
+export function NotesEditorToolbar({ editor }: { editor: Editor | null }) {
   const [linkDraft, setLinkDraft] = useState<string | null>(null);
   const state = useEditorState({
     editor,
@@ -174,12 +168,11 @@ export function NotesEditorToolbar({
         {btn(
           state.highlight,
           "Highlight (Mod-Shift-H)",
-          () =>
-            editor
-              .chain()
-              .focus()
-              .toggleHighlight({ color: highlightColor })
-              .run(),
+          // Plain toggle: the Highlight mark carries no color attribute (see
+          // NotesEditor.tsx) — its background comes from --editor-highlight-bg,
+          // set to the note's current color on the editor container — so
+          // there's no per-mark attrs to mismatch on unset.
+          () => editor.chain().focus().toggleHighlight().run(),
           <HighlighterIcon size={ICON.md} />,
         )}
         {btn(

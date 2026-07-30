@@ -153,11 +153,17 @@ into the app-data dir by hand. The `import_bible_db` command (`lib.rs`):
    `rename`s it over the target — so a partial copy never leaves a corrupt DB.
 3. Reopens the new file read-only into the managed state.
 
-On success the frontend calls `window.location.reload()` so the whole app
-re-reads books/translations; the dock layout is restored from `localStorage`
-(§7), so the reload is seamless. The in-app importer installs an
-already-normalized `bible.sqlite`; turning a _raw_ source DB into that shape is
-still the Python step (see [`database.md`](database.md) / [`../DESIGN.md`](../DESIGN.md)).
+On success the frontend refocuses the window (`getCurrentWindow().setFocus()`)
+before calling `window.location.reload()`, then the whole app re-reads
+books/translations; the dock layout is restored from `localStorage` (§7), so
+the reload is seamless. The refocus matters on this frameless
+(`decorations:false`) window: dismissing the native file-picker dialog can
+leave the webview unfocused, and reloading immediately afterward left stale
+paint on screen that visually overlapped the header until something forced a
+repaint — awaiting `setFocus()` first gives the window a tick to resettle. The
+in-app importer installs an already-normalized `bible.sqlite`; turning a _raw_
+source DB into that shape is still the Python step (see
+[`database.md`](database.md) / [`../DESIGN.md`](../DESIGN.md)).
 
 ---
 
@@ -186,9 +192,10 @@ Small, local-first, and defensive by construction:
   becoming a filename; `notes::safe_stem` reduces it to
   `[A-Za-z0-9_-]` (else `note`), preventing path traversal or odd filenames.
 - **Capability grants** (`capabilities/default.json`) are minimal: window
-  controls (`minimize`/`maximize`/`close`/`start-dragging`/…), `opener:default`,
-  and `dialog:allow-open` (the notes-folder picker). No filesystem, shell, or
-  HTTP capability is granted to the webview.
+  controls (`minimize`/`maximize`/`close`/`start-dragging`/`set-focus`/…),
+  `opener:default`, and `dialog:allow-open` (the notes-folder/DB-import
+  pickers). No filesystem, shell, or HTTP capability is granted to the
+  webview.
 - **Concurrency safety.** The two connection mutexes are never held at once;
   helpers that need the bible conn (e.g. `book_map`) copy their result out and
   release the bible lock before touching the notes conn (comment enforced in
