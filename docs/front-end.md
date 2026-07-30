@@ -556,10 +556,23 @@ resize while open.
 - **Tab-to-indent**: a local `tabIndent` extension (last in the extensions
   list, so `ListItem`/`TaskItem`'s own Tab-to-sink/Shift-Tab-to-lift get first
   refusal) handles Tab/Shift-Tab outside of lists. Inside a code block it
-  inserts/removes a real tab; everywhere else it inserts/removes 4 non-
-  breaking spaces rather than real spaces/a tab, since Markdown reads 4
-  leading spaces or a tab on a fresh line as an indented code block — NBSP
-  round-trips as plain text without triggering that.
+  inserts/removes a real tab at the cursor, unchanged. Everywhere else, Tab
+  indents every heading/paragraph/blockquote touched by the selection as a
+  whole block — not text inserted at the cursor — via an `indent` node
+  attribute (`IndentedHeading`/`IndentedParagraph`/`IndentedBlockquote`,
+  local `extend()`s of the stock nodes, swapped in via `StarterKit.configure`
+  disabling the originals) rendered as a `margin-left` CSS style, so wrapped
+  lines move too and a multi-block selection (e.g. a heading plus the
+  blockquote under it) indents both together. A blockquote's `indent` lives
+  on the `<blockquote>` element itself, not its inner paragraph — otherwise
+  the blockquote's left border/accent line wouldn't move with its text;
+  `blocksInSelection` redirects a quote's paragraph to its parent
+  blockquote's position for this reason. Persistence round-trips through
+  Markdown (which has no native concept of this indent) by encoding the
+  level as a run of 4-non-breaking-space units prepended to the block's own
+  markdown text on save and stripped back into the `indent` attribute on
+  load — NBSP rather than real spaces/a tab, since Markdown reads 4 leading
+  spaces or a tab on a fresh line as an indented code block.
 - **Anchor bar** (`NotesAnchorBar.tsx`): existing anchors render as
   clickable rows with a live passage preview (fetched via `get_chapter`) that
   jump the active Reader. Composing a new anchor (`Add anchor`) gets a
