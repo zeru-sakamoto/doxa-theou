@@ -3,6 +3,7 @@
 import { useState, type KeyboardEvent, type ReactNode } from "react";
 import { useEditorState, type Editor } from "@tiptap/react";
 import { Menu, type MenuAction } from "../../workspace/Menu";
+import { NoteLinkMenu } from "./NoteLinkMenu";
 import {
   BoldIcon,
   ItalicIcon,
@@ -31,7 +32,13 @@ const HEADING_LABEL: Record<number, string> = {
   4: "H4",
 };
 
-export function NotesEditorToolbar({ editor }: { editor: Editor | null }) {
+export function NotesEditorToolbar({
+  editor,
+  noteId,
+}: {
+  editor: Editor | null;
+  noteId: string;
+}) {
   const [linkDraft, setLinkDraft] = useState<string | null>(null);
   const state = useEditorState({
     editor,
@@ -239,6 +246,11 @@ export function NotesEditorToolbar({ editor }: { editor: Editor | null }) {
           () => editor.chain().focus().setHorizontalRule().run(),
           <HorizontalRuleIcon size={ICON.md} />,
         )}
+      </div>
+
+      <div className="flex items-center gap-x-0.5 shrink-0">
+        <div className="w-px h-4 bg-border shrink-0" />
+        <NoteLinkMenu editor={editor} noteId={noteId} />
       </div>
 
       {linkDraft !== null && (

@@ -31,6 +31,7 @@
     "@tiptap/pm": "^3.28.0",
     "@tiptap/react": "^3.28.0",
     "@tiptap/starter-kit": "^3.28.0",
+    "@tiptap/suggestion": "^3.28.0",
     "dockview-react": "^7.0.2",
     "motion": "^12.42.2",
     "react": "^19.1.0",

@@ -25,7 +25,10 @@ that exactly matches a passage heading — including cross-chapter headings
 like "Romans 9:30-10:4" — auto-fills a still-blank title with that heading.
 Pasting plain-text Markdown — including straight out of the Reader's
 selection menu — converts to real formatting instead of dropping in as a raw
-string. Settings can also bulk-import Logos Bible Study exports (`.txt`/HTML)
+string. Typing `[[` opens an autocomplete to link one note to another —
+Obsidian-compatible wikilinks that keep resolving even after a title changes,
+so the notes folder can double as (or live inside) an Obsidian vault.
+Settings can also bulk-import Logos Bible Study exports (`.txt`/HTML)
 as notes, one per passage, with dedupe, the same passage-heading
 auto-titling, and an undo for the last import; re-importing a file also
 retitles any already-imported note that's still untitled, in case the

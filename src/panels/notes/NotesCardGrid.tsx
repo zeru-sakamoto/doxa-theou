@@ -21,13 +21,13 @@ export function NotesCardGrid({ notes, onSelect, scrollRef }: Props) {
   return (
     <div
       ref={scrollRef}
-      className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-3 p-3 content-start overflow-auto h-full"
+      className="columns-[240px] gap-3 p-3 overflow-y-auto overflow-x-hidden h-full"
     >
       {notes.map((n) => (
         <button
           key={n.id}
           type="button"
-          className="flex flex-col gap-2 min-w-0 p-4 text-left border border-border-strong rounded-(--radius-md) bg-panel transition-colors duration-(--dur-fast) ease-(--ease-standard) hover:bg-accent-tint"
+          className="flex flex-col gap-2 min-w-0 w-full mb-3 p-4 text-left border border-border-strong rounded-(--radius-md) bg-panel transition-colors duration-(--dur-fast) ease-(--ease-standard) hover:bg-accent-tint break-inside-avoid"
           onClick={(e) => onSelect(n, e)}
         >
           <NoteRowContent note={n} />

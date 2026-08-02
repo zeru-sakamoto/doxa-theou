@@ -141,6 +141,56 @@ input.notes-title:focus-visible {
   outline: 2px solid var(--editor-selectednode-outline);
 }
 
+/* Wikilink pills — styled like anchor-row's tag (shell.css: colored text +
+   tinted hover wash, no underline), not like a generic <a> (base.css), and
+   serif (matching .tiptap blockquote) so a note-to-note link reads as a
+   distinct "kind" of text. `--wikilink-color` is stamped per-node by
+   WikiLink.ts's decoration plugin (the *linked* note's own assigned color,
+   live-updating); the var(--accent) fallback only covers the brief window
+   before the first decoration pass on a fresh app session.
+   Plain inline (not inline-flex): an inline-flex box computes its own height
+   from flex layout using .tiptap's inherited --lh-read (1.65, tuned for
+   prose leading), which came out taller than the surrounding line — plain
+   inline content doesn't establish that separate box height, so the pill
+   takes exactly the same vertical space as regular text. The icon gets its
+   gap from a margin instead of flex `gap`. */
+.tiptap a.wikilink {
+  text-decoration: none;
+  cursor: pointer;
+  padding: 5px 4px 0px 4px;
+  border-radius: var(--radius-xs);
+  font-family: var(--font-serif);
+  color: color-mix(
+    in srgb,
+    var(--wikilink-color, var(--accent)) 40%,
+    var(--text) 60%
+  );
+  background: color-mix(
+    in srgb,
+    var(--wikilink-color, var(--accent)) 30%,
+    transparent
+  );
+}
+.tiptap a.wikilink:hover {
+  background: color-mix(
+    in srgb,
+    var(--wikilink-color, var(--accent)) 38%,
+    transparent
+  );
+}
+.tiptap a.wikilink--broken {
+  color: var(--text-muted);
+  background: transparent;
+  cursor: default;
+}
+.tiptap .wikilink__icon {
+  display: inline-block;
+  margin-right: 3px;
+  vertical-align: middle;
+  position: relative;
+  top: -2px;
+}
+
 .tiptap p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   color: var(--editor-muted-fg);

@@ -327,6 +327,19 @@ export const LinkIcon = (p: SVGProps<SVGSVGElement> & { size?: number }) => (
   </Svg>
 );
 
+// Doubled square brackets — evokes wikilink syntax ([[note]]); distinct from
+// LinkIcon's chain loops (plain http links) and CodeIcon's single < >.
+export const WikiLinkIcon = (
+  p: SVGProps<SVGSVGElement> & { size?: number },
+) => (
+  <Svg {...p}>
+    <polyline points="8 5 5 5 5 19 8 19" />
+    <polyline points="16 5 19 5 19 19 16 19" />
+    <polyline points="11 8 9 8 9 16 11 16" />
+    <polyline points="13 8 15 8 15 16 13 16" />
+  </Svg>
+);
+
 export const HorizontalRuleIcon = (
   p: SVGProps<SVGSVGElement> & { size?: number },
 ) => (

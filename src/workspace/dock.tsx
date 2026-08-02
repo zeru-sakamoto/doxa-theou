@@ -286,7 +286,10 @@ function Watermark() {
 
 interface DockCtx {
   openReader: (translation?: string) => void;
-  openNotes: (noteId?: string, opts?: { inactive?: boolean }) => void;
+  openNotes: (
+    noteId?: string,
+    opts?: { inactive?: boolean; referencePanelId?: string },
+  ) => void;
   openSingleton: (component: Singleton) => void;
   gotoReference: (
     bookId: number,
@@ -402,7 +405,10 @@ export function DockProvider({ children }: { children: ReactNode }) {
   // Reader if there is one, else the first) on a given side, or — "Active" —
   // tab it straight into whatever group is currently active, of any kind.
   const openNotes = useCallback(
-    (noteId?: string, opts?: { inactive?: boolean }) => {
+    (
+      noteId?: string,
+      opts?: { inactive?: boolean; referencePanelId?: string },
+    ) => {
       const api = apiRef.current;
       if (!api) return;
       // 'always' renderer: see the matching comment in addReader — same
@@ -410,13 +416,22 @@ export function DockProvider({ children }: { children: ReactNode }) {
       // share a group.
       const notePanels = api.panels.filter((p) => p.id.startsWith("notes-"));
       if (notePanels.length > 0) {
-        // Normally there's only one Notes group, but the user can manually
-        // drag a note tab apart into a left one and a right one — when both
-        // exist, honor the "Open notes on" side instead of picking whichever
-        // happened to be first in dockview's panel list.
-        let existingNote = notePanels[0];
+        // A caller can name exactly which Notes panel to tab next to (e.g. a
+        // wikilink click — it should open onto the panel it was clicked
+        // from, not wherever the split-side preference points) — that skips
+        // the side heuristic below entirely, since we already know the
+        // target. Normally there's only one Notes group, but the user can
+        // manually drag a note tab apart into a left one and a right one —
+        // when both exist and no specific panel was named, honor the "Open
+        // notes on" side instead of picking whichever happened to be first
+        // in dockview's panel list.
+        let existingNote =
+          (opts?.referencePanelId &&
+            notePanels.find((p) => p.id === opts.referencePanelId)) ||
+          notePanels[0];
         const groups = Array.from(new Set(notePanels.map((p) => p.group)));
         if (
+          !opts?.referencePanelId &&
           groups.length > 1 &&
           (notesSplitSide === "left" || notesSplitSide === "right")
         ) {

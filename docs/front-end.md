@@ -154,6 +154,7 @@ src/
     notes/NotesColorMenu.tsx   per-note color swatch picker (header, left of ⋯)
     notes/NotebookMenu.tsx     per-note notebook picker (header)
     notes/NotesEditor.tsx      Tiptap editor host: toolbar, anchor bar, title input, content
+    notes/WikiLink.ts          [[note]] wikilink node + `[[`-suggestion autocomplete (Obsidian-compatible id|title syntax)
     notes/NotesEditorToolbar.tsx  formatting toolbar, wraps by button-group when narrow
     notes/NotesAnchorBar.tsx   verse-anchor rows + composer (autocomplete, keyboard nav, chapter/verse validation), tinted with the note's color
     notes/notes.ts         sample-notes loader/parser, shared highlight palette, notePreview()
@@ -573,6 +574,59 @@ resize while open.
   markdown text on save and stripped back into the `indent` attribute on
   load — NBSP rather than real spaces/a tab, since Markdown reads 4 leading
   spaces or a tab on a fresh line as an indented code block.
+- **Wikilinks** (`notes/WikiLink.ts`): typing `[[` opens an autocomplete
+  dropdown (a small vanilla-DOM popup via `@tiptap/suggestion`, styled to
+  match `AnchorComposer`'s dropdown) filtered against the in-memory notes
+  list (`useNotes()`); a toolbar button (`notes/NoteLinkMenu.tsx`, the
+  double-bracket `WikiLinkIcon`, last group in `NotesEditorToolbar.tsx`) is a
+  more discoverable second entry point — its popover (modeled on
+  `NotebookMenu.tsx`'s shell: `useMenuAlign`, outside-click/Escape to close)
+  searches every _other_ note (`noteId` prop excludes the current one) by
+  title, anchors, book, or notebook (plain substring match — no results shown
+  until a query is typed, both to avoid dumping the whole vault and because
+  an unfiltered list was tall enough to hit a real flexbox bug: `truncate`'s
+  `overflow: hidden` zeroes a flex item's automatic minimum size, so without
+  `shrink-0` on each row, flexbox compressed every row below its content
+  height to fit the popup's max-height instead of overflowing/scrolling —
+  fixed by adding `shrink-0`, kept rare by the search-gating). Each result
+  shows the title plus a muted anchors/notebook subtitle (same token choices
+  as `NoteRowContent.tsx`) so a non-title match is self-explanatory, and
+  inserts at the current cursor position via `editor.chain().focus()
+.insertContent(...)` rather than replacing a typed `[[` range. Either path
+  inserts an identical inline atom node rendered as a
+  clickable `<a class="wikilink">` pill — serif (`--font-serif`, matching
+  `.tiptap blockquote`), a small page-icon (a miniature of `icons.tsx`'s
+  `NotesIcon`, built as a raw inline-SVG `DOMOutputSpec` since this renders
+  as literal editor DOM, not JSX) prepended to the label, tinted with the
+  _linked_ note's own assigned color (not the fixed accent, not the
+  workspace default highlight color — `Note.color` specifically, falling
+  back to the accent tint when unset). That color is **live**: a ProseMirror
+  plugin (`wikiLinkColorPlugin` in `WikiLink.ts`) stamps a `--wikilink-color`
+  custom property onto each `wikiLink` node via a `DecorationSet`, recomputed
+  on every doc change _and_ whenever a `WIKILINK_COLOR_REFRESH`-flagged
+  transaction is dispatched — `NotesEditor.tsx`'s notes-sync effect dispatches
+  exactly that into its own `editor` whenever the shared `useNotes()` list
+  changes, so recoloring a note in one tab updates that note's pills
+  everywhere else it's linked, immediately, with no reopen/reload (plain
+  `renderHTML` only runs once per node render, so on its own it can't react
+  to a _different_ note's color changing while this editor sits idle).
+  It opens the target note on click (`dock.openNotes`, Ctrl/Cmd-click opens it inactive) —
+  passing this editor's own panel id as `referencePanelId` so the new tab
+  always lands in _this_ Notes panel specifically, not wherever the "Open
+  notes on" side preference would otherwise place it when more than one
+  Notes group is open (`dock.tsx`'s `openNotes`).
+  Persisted as Obsidian's own pipe-alias syntax, `[[id|title]]` — the target
+  is the note's stable `id` (which is also its real `{id}.md` filename), so
+  the link survives title renames in both this app and Obsidian (whose
+  resolver follows the id and shows the alias) without any vault-wide
+  link-rewrite step. A hand-typed or Obsidian-authored bare `[[Title]]` still
+  resolves on load (case-insensitive title lookup against the notes list)
+  and gets upgraded to the canonical `id`-based form next save; a target that
+  resolves to nothing renders dimmed/non-clickable (`.wikilink--broken`)
+  rather than erroring. `WikiLink`'s `parseMarkdown`/`renderMarkdown`/
+  `markdownTokenizer` read the live notes list off a module-level ref
+  (`setWikiLinkNotes`, kept current by a `NotesEditor` effect) rather than
+  `this.options`, since `@tiptap/markdown` calls those handlers unbound.
 - **Anchor bar** (`NotesAnchorBar.tsx`): existing anchors render as
   clickable rows with a live passage preview (fetched via `get_chapter`) that
   jump the active Reader. Composing a new anchor (`Add anchor`) gets a

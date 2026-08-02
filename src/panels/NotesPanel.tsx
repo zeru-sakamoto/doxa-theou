@@ -427,6 +427,7 @@ export function NotesPanel({ api, params }: IDockviewPanelProps<NotesParams>) {
           {selectedNote ? (
             <NotesEditor
               key={selectedNote.id}
+              panelId={api.id}
               note={selectedNote}
               onRemoveAnchor={removeAnchor}
               anchorDraft={anchorDraft}

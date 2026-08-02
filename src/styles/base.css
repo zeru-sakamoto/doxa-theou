@@ -36,6 +36,18 @@ button {
   cursor: pointer;
 }
 
+/* Tailwind's Preflight resets `a { color: inherit; text-decoration: inherit }`
+   and never sets a cursor — restore both so links read as links everywhere. */
+a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  cursor: pointer;
+}
+a:hover {
+  text-decoration-color: var(--accent);
+}
+
 /* Accessible focus for keyboard users only. */
 :focus-visible {
   outline: 2px solid var(--accent);

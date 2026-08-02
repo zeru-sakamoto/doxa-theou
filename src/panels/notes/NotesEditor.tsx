@@ -2,7 +2,7 @@
 // Remounted (via `key={note.id}` at the call site) whenever the selected
 // note changes — a fresh Editor per note avoids fighting Tiptap's own
 // internal state with a manual content-sync effect.
-import type { CSSProperties } from "react";
+import { useEffect, type CSSProperties } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { Extension } from "@tiptap/core";
 import type { JSONContent } from "@tiptap/core";
@@ -18,8 +18,11 @@ import { Subscript } from "@tiptap/extension-subscript";
 import { Superscript } from "@tiptap/extension-superscript";
 import { Markdown } from "@tiptap/markdown";
 import { useWorkspace } from "../../state/workspace";
+import { useNotes } from "../../state/notes";
+import { useDock } from "../../workspace/dock";
 import { NotesAnchorBar } from "./NotesAnchorBar";
 import { NotesEditorToolbar } from "./NotesEditorToolbar";
+import { WikiLink, setWikiLinkNotes, WIKILINK_COLOR_REFRESH } from "./WikiLink";
 import type { Note } from "./notes";
 
 // 4 non-breaking spaces, not 4 regular spaces/a tab: Markdown treats a
@@ -284,6 +287,10 @@ const TabIndent = Extension.create({
 });
 
 interface Props {
+  // This editor's own dockview panel id — passed to dock.openNotes so a
+  // wikilink click tabs the target note into *this* panel specifically,
+  // instead of falling back to the global "Open notes on" side preference.
+  panelId: string;
   note: Note;
   onRemoveAnchor: (anchor: string) => void;
   anchorDraft: string | null;
@@ -294,6 +301,7 @@ interface Props {
 }
 
 export function NotesEditor({
+  panelId,
   note,
   onRemoveAnchor,
   anchorDraft,
@@ -303,6 +311,8 @@ export function NotesEditor({
   onBodyChange,
 }: Props) {
   const ws = useWorkspace();
+  const { notes } = useNotes();
+  const dock = useDock();
   // A note's own color (set via NotesColorMenu) takes priority over the
   // global default; the toolbar's highlight button and the anchor rows
   // below both use this, so a note's coloring is consistent throughout.
@@ -320,6 +330,18 @@ export function NotesEditor({
         const text = event.clipboardData?.getData("text/plain");
         if (html || !text?.trim()) return false;
         editor?.commands.insertContent(text, { contentType: "markdown" });
+        return true;
+      },
+      // Click-to-navigate for wikilink pills; Ctrl/Cmd-click opens the
+      // target note inactive, matching the same modifier convention as the
+      // notes list's own ctrl-click-to-open-in-background (NotesPanel.tsx).
+      handleClickOn(_view, _pos, node, _nodePos, event) {
+        if (node.type.name !== "wikiLink" || !node.attrs.id) return false;
+        event.preventDefault();
+        dock.openNotes(node.attrs.id, {
+          inactive: event.ctrlKey || event.metaKey,
+          referencePanelId: panelId,
+        });
         return true;
       },
     },
@@ -351,6 +373,7 @@ export function NotesEditor({
       Placeholder.configure({ placeholder: "Write freely…" }),
       Markdown,
       TabIndent,
+      WikiLink,
     ],
     content: note.body,
     contentType: "markdown",
@@ -358,9 +381,21 @@ export function NotesEditor({
     onUpdate: ({ editor }) => onBodyChange(editor.getMarkdown()),
   });
 
+  // WikiLink's parseMarkdown/renderMarkdown run outside Tiptap's own `this`
+  // binding (see WikiLink.ts), so they read the live notes list off a shared
+  // module ref instead — kept current here on every list change. Also nudge
+  // this editor's own color-decoration plugin so a wikilink's pill recolors
+  // immediately if its target note's color was just changed elsewhere (a
+  // different open Notes tab), not only on this note's own next edit.
+  useEffect(() => {
+    setWikiLinkNotes(notes);
+    if (!editor) return;
+    editor.view.dispatch(editor.state.tr.setMeta(WIKILINK_COLOR_REFRESH, true));
+  }, [notes, editor]);
+
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <NotesEditorToolbar editor={editor} />
+      <NotesEditorToolbar editor={editor} noteId={note.id} />
       <div className="flex-1 overflow-auto pt-3 pb-3">
         {/* Capped and centered so a fully-open (unsplit) Notes panel doesn't
             stretch the note's text edge-to-edge — user-adjustable (Settings →
