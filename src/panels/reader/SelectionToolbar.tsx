@@ -12,7 +12,7 @@ import { DUR_FAST } from "../../motion";
 import { useDock } from "../../workspace/dock";
 import { useNotes } from "../../state/notes";
 import { useWorkspace } from "../../state/workspace";
-import { booksForAnchors } from "../notes/notes";
+import { booksForAnchors, maybeAutoTitleFromAnchor } from "../notes/notes";
 import {
   buildBlockquoteCopy,
   buildPlainCopy,
@@ -45,7 +45,7 @@ export function SelectionToolbar({
 }) {
   const dock = useDock();
   const { notes, updateNote } = useNotes();
-  const { books } = useWorkspace();
+  const { books, activeTranslation } = useWorkspace();
   const [sel, setSel] = useState<ActiveSelection | null>(null);
   const [copied, setCopied] = useState<"plain" | "quote" | "reference" | null>(
     null,
@@ -139,10 +139,19 @@ export function SelectionToolbar({
     const anchor = buildReferenceCopy(bookName(bookId), chapter, sel.verses);
     if (!activeNote.anchors.includes(anchor)) {
       const anchors = [...activeNote.anchors, anchor];
+      const wasUntitled = !activeNote.title.trim();
       updateNote(activeNote.id, {
         anchors,
         book: booksForAnchors(anchors, books),
       });
+      if (wasUntitled)
+        void maybeAutoTitleFromAnchor(
+          anchor,
+          books,
+          activeTranslation,
+          updateNote,
+          activeNote.id,
+        );
     }
     setAnchored(true);
     clearTimeout(anchoredTimeout.current);

@@ -2,7 +2,7 @@
 // now live in the backend (src-tauri/src/notes.rs, wrapped in api.ts); what's
 // left here is UI-side: the list preview, the highlight palette, and anchor
 // parsing (shared by the Reader's highlight index and the anchor rows).
-import type { Book, Note } from "../../api";
+import { sectionHeadingsForChapter, type Book, type Note } from "../../api";
 
 export type { Note };
 
@@ -152,6 +152,41 @@ export function parseAnchor(anchor: string, books: Book[]): AnchorRef | null {
     verseStart: m[2] ? parseInt(m[2], 10) : undefined,
     verseEnd: m[3] ? parseInt(m[3], 10) : m[2] ? parseInt(m[2], 10) : undefined,
   };
+}
+
+// If the anchor's verse range exactly matches a stored passage heading,
+// prefill the title with it — but only while the title is still blank, so
+// this never clobbers something the user typed (checked again at write time
+// in case a title was typed while this lookup was in flight). Shared by
+// NotesPanel's manual anchor entry and the Reader's "Add Anchor" selection
+// toolbar, so both mechanics auto-title identically.
+export async function maybeAutoTitleFromAnchor(
+  anchor: string,
+  books: Book[],
+  translation: string,
+  updateNote: (
+    id: string,
+    patch: Partial<Note> | ((n: Note) => Partial<Note>),
+  ) => void,
+  noteId: string,
+): Promise<void> {
+  const ref = parseAnchor(anchor, books);
+  if (!ref) return;
+  if (ref.verseStart == null || ref.verseEnd == null) return;
+  const headings = await sectionHeadingsForChapter(
+    ref.bookId,
+    ref.chapterStart,
+    translation,
+  );
+  const match = headings.find(
+    (h) =>
+      h.chapter === ref.chapterStart &&
+      h.end_chapter === ref.chapterEnd &&
+      h.verse_start === ref.verseStart &&
+      h.verse_end === ref.verseEnd,
+  );
+  if (!match) return;
+  updateNote(noteId, (n) => (n.title.trim() ? {} : { title: match.heading }));
 }
 
 // Every book a note's anchors touch, as display names in canonical Bible
