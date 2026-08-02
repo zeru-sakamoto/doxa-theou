@@ -293,13 +293,15 @@ pub fn default_translation_code(conn: &Connection) -> rusqlite::Result<Option<St
 }
 
 /// Arbitrary user text -> safe FTS5 MATCH string: each whitespace-separated
-/// token becomes a quoted term (embedded `"` doubled), so any FTS operator or
-/// quote in the input (`"`, `*`, `:`, `^`, `-`, `NEAR`, `(`) is matched
-/// literally instead of parsed as query syntax and raising an error. Empty
-/// input (or all-whitespace) yields an empty string.
+/// token becomes a quoted prefix term (embedded `"` doubled, trailing `*`),
+/// so any FTS operator or quote in the input (`"`, `*`, `:`, `^`, `-`,
+/// `NEAR`, `(`) is matched literally instead of parsed as query syntax and
+/// raising an error, and a partial word (e.g. "tes") matches any token it's
+/// a prefix of (e.g. "testimony"). Empty input (or all-whitespace) yields an
+/// empty string.
 fn fts_query(raw: &str) -> String {
     raw.split_whitespace()
-        .map(|t| format!("\"{}\"", t.replace('"', "\"\"")))
+        .map(|t| format!("\"{}\"*", t.replace('"', "\"\"")))
         .collect::<Vec<_>>()
         .join(" ")
 }
@@ -354,12 +356,12 @@ mod tests {
 
     #[test]
     fn fts_query_quotes_each_token_and_escapes() {
-        assert_eq!(fts_query("the shepherd"), "\"the\" \"shepherd\"");
+        assert_eq!(fts_query("the shepherd"), "\"the\"* \"shepherd\"*");
         // A stray quote is doubled inside the wrapping quotes, not passed through
         // as syntax (this exact input raised an FTS parse error before).
-        assert_eq!(fts_query("\"love"), "\"\"\"love\"");
+        assert_eq!(fts_query("\"love"), "\"\"\"love\"*");
         // Bare FTS operators become literal tokens, never query syntax.
-        assert_eq!(fts_query("C++ (grace)"), "\"C++\" \"(grace)\"");
+        assert_eq!(fts_query("C++ (grace)"), "\"C++\"* \"(grace)\"*");
         assert_eq!(fts_query("   "), "");
         assert_eq!(fts_query(""), "");
     }

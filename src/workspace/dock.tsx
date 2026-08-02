@@ -300,6 +300,8 @@ interface DockCtx {
   /** The note open in the active Notes panel, falling back to the first
    * Notes panel (of either side) with one open — undefined if none. */
   getActiveNoteId: () => string | undefined;
+  /** Translation codes of every currently open Reader panel (deduped). */
+  getOpenReaderTranslations: () => string[];
   saveLayout: () => void;
   resetLayout: () => void;
   register: (api: DockviewApi) => void;
@@ -544,6 +546,16 @@ export function DockProvider({ children }: { children: ReactNode }) {
     return undefined;
   }, []);
 
+  const getOpenReaderTranslations = useCallback(() => {
+    const api = apiRef.current;
+    if (!api) return [];
+    const codes = api.panels
+      .filter((p) => p.id.startsWith("reader-"))
+      .map((p) => (p.params as ReaderParams | undefined)?.translation)
+      .filter((t): t is string => !!t);
+    return [...new Set(codes)];
+  }, []);
+
   const saveLayout = useCallback(() => {
     const api = apiRef.current;
     if (!api) return;
@@ -566,6 +578,7 @@ export function DockProvider({ children }: { children: ReactNode }) {
       openSingleton,
       gotoReference,
       getActiveNoteId,
+      getOpenReaderTranslations,
       saveLayout,
       resetLayout,
       register,
@@ -576,6 +589,7 @@ export function DockProvider({ children }: { children: ReactNode }) {
       openSingleton,
       gotoReference,
       getActiveNoteId,
+      getOpenReaderTranslations,
       saveLayout,
       resetLayout,
       register,

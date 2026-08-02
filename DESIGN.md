@@ -134,10 +134,17 @@ invocable by default in Tauri 2; rusqlite is in-process, not a plugin.
 `get_chapter` is a plain indexed lookup. `search` runs FTS5 `MATCH` ordered by
 `bm25()` (lower = better), optionally filtered to one translation, capped at 50 hits.
 Query text is **sanitized** first (`db::fts_query`): each whitespace token is
-wrapped as a quoted FTS term (embedded quotes doubled), so punctuation/operators
-(`"`, `*`, `:`, `-`, `(`) are matched literally instead of parsed as query syntax
-— which previously raised an error surfaced to the user. A blank query returns
-no hits.
+wrapped as a quoted, `*`-suffixed FTS prefix term (embedded quotes doubled), so
+punctuation/operators (`"`, `*`, `:`, `-`, `(`) are matched literally instead of
+parsed as query syntax — which previously raised an error surfaced to the user
+— and a partial word (e.g. "tes") matches any token it's a prefix of (e.g.
+"testimony"). A blank query returns no hits.
+
+The frontend (`SearchPanel.tsx`) highlights the matched term within each hit's
+verse text (`highlightMatches`, a case-insensitive split/wrap — purely
+cosmetic, doesn't affect which hits are returned) and renders the Scripture
+and Notes result groups as independent collapsible accordions, open by
+default.
 
 Roadmap (not built): fuzzy/edit-distance tolerance, and offline semantic similarity
 (`all-MiniLM-L6-v2` via `fastembed-rs`, vectors cached in SQLite), blended with the

@@ -17,6 +17,7 @@ import { exactReference } from "../workspace/CommandPalette";
 import { useDock } from "../workspace/dock";
 import { GhostTextInput } from "../workspace/GhostTextInput";
 import { takePendingSearch } from "../workspace/globalSearch";
+import { ChevronRightIcon, ICON } from "../workspace/icons";
 import { suggestCompletion } from "../workspace/inlineSuggest";
 import { useArrowScroll } from "../workspace/useArrowScroll";
 import { notePreview } from "./notes/notes";
@@ -89,7 +90,18 @@ export function SearchPanel({ api }: IDockviewPanelProps) {
     setError(null);
     setRan(true);
     try {
-      setHits(await apiSearch(term));
+      // Default translation, plus any others the user has an open Reader
+      // for — never every translation in the DB.
+      const translations = [
+        ...new Set([
+          ws.defaultTranslation,
+          ...dock.getOpenReaderTranslations(),
+        ]),
+      ];
+      const results = await Promise.all(
+        translations.map((t) => apiSearch(term, t)),
+      );
+      setHits(results.flat().sort((a, b) => a.score - b.score));
     } catch (e) {
       setError(String(e));
     } finally {
@@ -165,7 +177,7 @@ export function SearchPanel({ api }: IDockviewPanelProps) {
                       {h.translation}
                     </span>
                     <span className="font-(family-name:--font-serif) text-(length:--text-base) text-ink">
-                      {h.text}
+                      {highlightMatches(h.text, searched)}
                     </span>
                   </button>
                 ))
@@ -213,6 +225,28 @@ export function SearchPanel({ api }: IDockviewPanelProps) {
   );
 }
 
+function highlightMatches(text: string, query: string): ReactNode {
+  if (!query) return text;
+  const parts = text.split(new RegExp(`(${escapeRegExp(query)})`, "gi"));
+  if (parts.length === 1) return text;
+  return parts.map((part, i) =>
+    part.toLowerCase() === query.toLowerCase() ? (
+      <mark
+        key={i}
+        className="bg-accent-tint-strong text-ink rounded-(--radius-sm) not-italic"
+      >
+        {part}
+      </mark>
+    ) : (
+      part
+    ),
+  );
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function Group({
   label,
   count,
@@ -222,15 +256,28 @@ function Group({
   count: number;
   children: ReactNode;
 }) {
+  const [open, setOpen] = useState(true);
   return (
     <section className="[&+&]:mt-4">
-      <h3 className="flex items-center gap-2 mb-2 font-(family-name:--font-mono) text-(length:--text-2xs) uppercase tracking-[0.08em] text-muted">
+      <button
+        className="flex items-center gap-2 mb-2 w-full p-0 border-0 bg-transparent font-(family-name:--font-mono) text-(length:--text-2xs) uppercase tracking-[0.08em] text-muted"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span
+          className={
+            "inline-flex transition-transform duration-(--dur-fast) ease-(--ease-standard)" +
+            (open ? " rotate-90" : "")
+          }
+        >
+          <ChevronRightIcon size={ICON.sm} />
+        </span>
         {label}{" "}
         <span className="px-1.5 rounded-full bg-panel border border-border">
           {count}
         </span>
-      </h3>
-      <div>{children}</div>
+      </button>
+      {open && <div>{children}</div>}
     </section>
   );
 }
