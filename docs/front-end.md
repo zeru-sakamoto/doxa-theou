@@ -363,8 +363,9 @@ whichever note is currently open, found via `useDock`'s `getActiveNoteId()`
 (the active dockview panel's note if it's a Notes panel, else the first open
 Notes panel's, checked either side of the dock — see "Tab grouping" above).
 Disabled when no note is open. Mirrors `NotesPanel`'s own `confirmAnchor`
-(dedupe + recompute `book` via `booksForAnchors`) but does **not** replicate
-its passage-heading auto-title lookup, which is local to that panel.
+(dedupe + recompute `book` via `booksForAnchors`), including the
+passage-heading auto-title lookup — both call the shared
+`maybeAutoTitleFromAnchor` (`notes/notes.ts`).
 
 Dismissal is entirely selection-driven — a `mousedown` outside the toolbar
 hides it, and it only reappears on the next `mouseup` if `selectionchange`
@@ -450,14 +451,17 @@ Edits are debounced (600ms) per-note before writing to disk.
 (`notePreview()`), the highlight palette, `NotesListDisplay`, anchor
 parsing, and `booksForAnchors()` (shared with the Reader's highlight index).
 When an anchor's verse range exactly matches a stored passage heading
-(`section_headings_for_chapter`, see below), `NotesPanel`'s `confirmAnchor`
-prefills the still-blank title with that heading, checked against the
-workspace's active translation. This also matches cross-chapter headings
+(`section_headings_for_chapter`, see below), the shared
+`maybeAutoTitleFromAnchor` (`notes/notes.ts`) prefills the still-blank title
+with that heading, checked against the workspace's active translation —
+called from both `NotesPanel`'s `confirmAnchor` and the Reader's
+`SelectionToolbar` "Add Anchor", so either path to adding an anchor
+auto-titles identically. This also matches cross-chapter headings
 (e.g. "Romans 9:30-10:4"): `parseAnchor` (`notes/notes.ts`) resolves the
-anchor's start/end chapter and verse separately, and `maybeAutoTitle` looks
-up headings starting in the anchor's start chapter and compares both ends
-(`chapter`/`end_chapter`/`verse_start`/`verse_end`) rather than requiring a
-single-chapter anchor. Logos-imported notes get the same treatment
+anchor's start/end chapter and verse separately, and
+`maybeAutoTitleFromAnchor` looks up headings starting in the anchor's start
+chapter and compares both ends (`chapter`/`end_chapter`/`verse_start`/
+`verse_end`) rather than requiring a single-chapter anchor. Logos-imported notes get the same treatment
 (including cross-chapter spans) on the Rust side (`logos_import.rs`'s
 `auto_title`, checked against the Bible DB's default translation and
 `notes::resolve_anchor` for parsing). Because `auto_title` only has whatever

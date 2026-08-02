@@ -12,7 +12,6 @@ import {
   BulletListIcon,
   CardsIcon,
   CheckIcon,
-  CloseIcon,
   ICON,
   MenuIcon,
   MoreIcon,
@@ -33,6 +32,7 @@ import { NotesColorMenu } from "./notes/NotesColorMenu";
 import { NotesDrawer } from "./notes/NotesDrawer";
 import { NotesEditor } from "./notes/NotesEditor";
 import { NotesFilterMenu } from "./notes/NotesFilterMenu";
+import { NotesTagInput } from "./notes/NotesTagInput";
 
 export interface NotesParams {
   noteId?: string;
@@ -92,7 +92,6 @@ export function NotesPanel({ api, params }: IDockviewPanelProps<NotesParams>) {
   useArrowScroll(isActive, listScrollRef);
 
   const [anchorDraft, setAnchorDraft] = useState<string | null>(null);
-  const [tagDraft, setTagDraft] = useState("");
   const [query, setQuery] = useState("");
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
   const [bookIds, setBookIds] = useState<Set<number>>(new Set());
@@ -160,20 +159,6 @@ export function NotesPanel({ api, params }: IDockviewPanelProps<NotesParams>) {
     });
   }
 
-  function addTag(value: string) {
-    const v = value.trim().replace(/^-+|-+$/g, "");
-    if (v && selectedNote && !selectedNote.tags.includes(v))
-      updateNote(selectedNote.id, (n) => ({ tags: [...n.tags, v] }));
-    setTagDraft("");
-  }
-
-  function removeTag(tag: string) {
-    if (!selectedNote) return;
-    updateNote(selectedNote.id, (n) => ({
-      tags: n.tags.filter((t) => t !== tag),
-    }));
-  }
-
   function updateColor(color: string | undefined) {
     if (!selectedNote) return;
     updateNote(selectedNote.id, { color });
@@ -214,6 +199,15 @@ export function NotesPanel({ api, params }: IDockviewPanelProps<NotesParams>) {
     const set = new Set<string>();
     for (const n of notes) for (const t of n.tags) set.add(t);
     return Array.from(set).sort();
+  }, [notes]);
+
+  const tagsByFrequency = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const n of notes)
+      for (const t of n.tags) counts.set(t, (counts.get(t) ?? 0) + 1);
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([tag]) => tag);
   }, [notes]);
 
   const allNotebooks = useMemo(() => {
@@ -455,45 +449,11 @@ export function NotesPanel({ api, params }: IDockviewPanelProps<NotesParams>) {
 
       {selectedNote && (
         <div className="p-2 border-t border-border bg-panel shrink-0">
-          <div className="flex flex-nowrap focus-within:flex-wrap justify-end focus-within:justify-start items-center gap-1.5 px-2 py-1 h-[30px] focus-within:h-auto overflow-hidden focus-within:overflow-visible rounded-(--radius-sm) border border-border-strong bg-bg focus-within:border-accent focus-within:shadow-[0_0_0_2px_var(--accent-tint-strong)]">
-            {selectedNote.tags.map((t) => (
-              <span
-                key={t}
-                title={t}
-                className="flex items-center gap-1 py-px pl-1.5 pr-1 rounded-full bg-accent-tint text-accent text-(length:--text-2xs) max-w-[140px] shrink-0"
-              >
-                <span className="truncate">{t}</span>
-                <button
-                  type="button"
-                  className="flex items-center justify-center rounded-(--radius-full) text-accent hover:text-ink"
-                  title={`Remove tag ${t}`}
-                  aria-label={`Remove tag ${t}`}
-                  onClick={() => removeTag(t)}
-                >
-                  <CloseIcon size={ICON.xs} />
-                </button>
-              </span>
-            ))}
-            <input
-              className="flex-1 min-w-[100px] border-0 bg-transparent text-ink placeholder:text-muted text-(length:--text-sm) py-0.5"
-              style={{ outline: "none" }}
-              value={tagDraft}
-              placeholder="Add tag…"
-              onChange={(e) => setTagDraft(e.target.value.replace(/\s+/g, "-"))}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  addTag(tagDraft);
-                } else if (
-                  e.key === "Backspace" &&
-                  tagDraft === "" &&
-                  selectedNote.tags.length > 0
-                ) {
-                  e.preventDefault();
-                  removeTag(selectedNote.tags[selectedNote.tags.length - 1]);
-                }
-              }}
-            />
-          </div>
+          <NotesTagInput
+            note={selectedNote}
+            tagsByFrequency={tagsByFrequency}
+            onUpdateNote={updateNote}
+          />
         </div>
       )}
     </div>

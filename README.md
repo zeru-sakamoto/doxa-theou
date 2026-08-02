@@ -8,7 +8,7 @@ The Reader panel shows one chapter at a time (no continuous scroll); you move
 between chapters via the TOC drawer, ⌘K, a note anchor, or the chapter up/down
 buttons, which roll across book boundaries. Selecting verse text shows a
 floating menu to copy it as plain text, as a Markdown blockquote citation, or
-just its reference (e.g. "Romans 10:5-7") — plus, set apart from those, an
+just its reference (e.g. "Romans 10:5-7"). Set apart from those is an
 "Add Anchor" action that anchors the selection to whichever note is
 currently open, on either side of the dock.
 
@@ -17,15 +17,15 @@ notebook), each row showing its last-modified date and time, sortable by last
 modified or by canonical Bible book order (for anchored notes) via the sort
 menu next to the filter icon.
 Opening a Notes tab with no note selected shows that list at full panel
-width — as cards or full-width bars, a preference toggled in the header —
+width, as cards or full-width bars (a preference toggled in the header),
 instead of a blank editor. Notes are Markdown files with frontmatter, edited
 in a live Tiptap editor and persisted to disk (a rebuilt SQLite index backs
 search and verse-anchor highlighting). Anchoring a note to a verse range
-that exactly matches a passage heading — including cross-chapter headings
-like "Romans 9:30-10:4" — auto-fills a still-blank title with that heading.
-Pasting plain-text Markdown — including straight out of the Reader's
-selection menu — converts to real formatting instead of dropping in as a raw
-string. Typing `[[` opens an autocomplete to link one note to another —
+that exactly matches a passage heading (including cross-chapter headings
+like "Romans 9:30-10:4") auto-fills a still-blank title with that heading.
+Pasting plain-text Markdown (including straight out of the Reader's
+selection menu) converts to real formatting instead of dropping in as a raw
+string. Typing `[[` opens an autocomplete to link one note to another:
 Obsidian-compatible wikilinks that keep resolving even after a title changes,
 so the notes folder can double as (or live inside) an Obsidian vault.
 Settings can also bulk-import Logos Bible Study exports (`.txt`/HTML)
