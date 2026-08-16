@@ -140,8 +140,9 @@ def clean_text(text: str) -> str:
     The source occasionally appends literal " end of footnotes"/" end of
     crossrefs" markers, and strips line breaks (mostly in poetry) without
     inserting a space. The re-spacing is a heuristic, not exhaustive text
-    cleanup — it fixes the common punctuation/case-boundary cases; rarer
-    glued words with no case signal (e.g. "Maskilofthe") are left as-is.
+    cleanup — it fixes the common punctuation/case-boundary and
+    punctuation/opening-quote cases (e.g. `says,"Rejoice` -> `says, "Rejoice`);
+    rarer glued words with no case signal (e.g. "Maskilofthe") are left as-is.
     """
     text = text or ""
     changed = True
@@ -153,6 +154,7 @@ def clean_text(text: str) -> str:
                 changed = True
     text = text.rstrip()
     text = re.sub(r"(?<=[.!?,;:])(?=[A-Za-z])", " ", text)
+    text = re.sub(r"(?<=[.!?,;:])(?=[“‘])", " ", text)
     text = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", text)
     return text
 

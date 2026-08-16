@@ -26,6 +26,7 @@ import type {
 
 export type Theme = "light" | "dark";
 export type NotesSplitSide = "left" | "right" | "active";
+export type StartupMode = "layout" | "dashboard";
 export interface Reference {
   bookId: number;
   chapter: number;
@@ -77,6 +78,8 @@ interface WorkspaceCtx {
   setNotesListDisplay: (d: NotesListDisplay) => void;
   notesSortBy: NotesSortBy;
   setNotesSortBy: (s: NotesSortBy) => void;
+  startupMode: StartupMode;
+  setStartupMode: (m: StartupMode) => void;
 }
 
 const Ctx = createContext<WorkspaceCtx | null>(null);
@@ -91,6 +94,7 @@ const LAST_READER_POSITION_KEY = "doxa-last-reader-position";
 const NOTES_SPLIT_SIDE_KEY = "doxa-notes-split-side";
 const NOTES_LIST_DISPLAY_KEY = "doxa-notes-list-display";
 const NOTES_SORT_BY_KEY = "doxa-notes-sort-by";
+const STARTUP_MODE_KEY = "doxa-startup-mode";
 
 function initialLastReaderPosition(): LastReaderPosition | null {
   const raw = localStorage.getItem(LAST_READER_POSITION_KEY);
@@ -178,6 +182,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     () =>
       (localStorage.getItem(NOTES_SORT_BY_KEY) as NotesSortBy) || "modified",
   );
+  const [startupMode, setStartupModeState] = useState<StartupMode>(
+    () => (localStorage.getItem(STARTUP_MODE_KEY) as StartupMode) || "layout",
+  );
 
   // Apply + persist theme (before paint to avoid a flash).
   useLayoutEffect(() => {
@@ -251,6 +258,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setNotesSortByState(s);
     localStorage.setItem(NOTES_SORT_BY_KEY, s);
   }, []);
+  const setStartupMode = useCallback((m: StartupMode) => {
+    setStartupModeState(m);
+    localStorage.setItem(STARTUP_MODE_KEY, m);
+  }, []);
   const setLastReaderPosition = useCallback((p: LastReaderPosition | null) => {
     setLastReaderPositionState(p);
     if (p) localStorage.setItem(LAST_READER_POSITION_KEY, JSON.stringify(p));
@@ -300,6 +311,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setNotesListDisplay,
       notesSortBy,
       setNotesSortBy,
+      startupMode,
+      setStartupMode,
     }),
     [
       theme,
@@ -333,6 +346,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setNotesListDisplay,
       notesSortBy,
       setNotesSortBy,
+      startupMode,
+      setStartupMode,
     ],
   );
 

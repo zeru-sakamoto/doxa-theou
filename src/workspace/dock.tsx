@@ -26,6 +26,7 @@ import {
   type IDockviewPanelHeaderProps,
   type IDockviewPanelProps,
   type ReactContextMenuItemConfig,
+  type SerializedDockview,
 } from "dockview-react";
 import { HomePanel } from "../panels/HomePanel";
 import type { NotesParams } from "../panels/NotesPanel";
@@ -95,6 +96,23 @@ class PanelErrorBoundary extends Component<
 }
 
 const LAYOUT_KEY = "doxa-layout";
+// Snapshot of doxa-layout taken right before it would otherwise be lost —
+// at launch (before this session can overwrite it) and right before "Reset
+// layout" clears the dock — so "Restore most recent layout" always has
+// something to offer regardless of startup mode.
+const RECENT_LAYOUT_KEY = "doxa-recent-layout";
+
+// Read-only lookup for the Header menu (thumbnail + item visibility) — kept
+// outside the dock context since it doesn't need the live DockviewApi.
+export function getRecentLayoutSnapshot(): SerializedDockview | null {
+  const raw = localStorage.getItem(RECENT_LAYOUT_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as SerializedDockview;
+  } catch {
+    return null;
+  }
+}
 type Singleton = "search" | "settings";
 const TITLES: Record<Singleton, string> = {
   search: "Search",
@@ -304,6 +322,8 @@ interface DockCtx {
   getOpenReaderTranslations: () => string[];
   saveLayout: () => void;
   resetLayout: () => void;
+  restoreRecentLayout: () => void;
+  hasRecentLayout: boolean;
   register: (api: DockviewApi) => void;
 }
 
@@ -315,9 +335,16 @@ export function useDock(): DockCtx {
 }
 
 export function DockProvider({ children }: { children: ReactNode }) {
-  const { defaultTranslation, notesSplitSide } = useWorkspace();
+  const { defaultTranslation, notesSplitSide, startupMode } = useWorkspace();
   const apiRef = useRef<DockviewApi | null>(null);
   const idRef = useRef(0);
+  // Mirrors whether RECENT_LAYOUT_KEY is populated, so Header re-renders
+  // (and the "Restore most recent layout" item appears/disappears) as soon
+  // as a snapshot is written — plain localStorage reads wouldn't be
+  // reactive on their own.
+  const [hasRecentLayout, setHasRecentLayout] = useState(
+    () => getRecentLayoutSnapshot() !== null,
+  );
 
   const addReader = useCallback(
     (
@@ -368,30 +395,40 @@ export function DockProvider({ children }: { children: ReactNode }) {
     [notesSplitSide],
   );
 
-  const register = useCallback((api: DockviewApi) => {
-    apiRef.current = api;
-    // Restore the previous session's layout ("Save layout" / the autosave
-    // below persist it). Restored Reader/Notes tabs reopen where they were,
-    // because each panel mirrors its live position/selection into its own
-    // params (see api.updateParameters in ReaderPanel/NotesPanel). A missing,
-    // unparseable, or dockview-incompatible blob is discarded so we fall back
-    // to the empty dock — which the watermark (HomePanel) fills — instead of
-    // throwing.
-    const saved = localStorage.getItem(LAYOUT_KEY);
-    if (saved) {
-      try {
-        api.fromJSON(JSON.parse(saved));
-      } catch (e) {
-        console.error("Discarding unreadable saved layout:", e);
-        localStorage.removeItem(LAYOUT_KEY);
-        api.clear();
+  const register = useCallback(
+    (api: DockviewApi) => {
+      apiRef.current = api;
+      // Restore the previous session's layout ("Save layout" / the autosave
+      // below persist it). Restored Reader/Notes tabs reopen where they were,
+      // because each panel mirrors its live position/selection into its own
+      // params (see api.updateParameters in ReaderPanel/NotesPanel). A missing,
+      // unparseable, or dockview-incompatible blob is discarded so we fall back
+      // to the empty dock — which the watermark (HomePanel) fills — instead of
+      // throwing.
+      const saved = localStorage.getItem(LAYOUT_KEY);
+      // Snapshot forward before this session's own changes can overwrite
+      // doxa-layout, so "Restore most recent layout" always reflects what was
+      // open when the app was last closed — regardless of startup mode.
+      if (saved) {
+        localStorage.setItem(RECENT_LAYOUT_KEY, saved);
+        setHasRecentLayout(true);
       }
-    }
-    api.onDidLayoutChange(() =>
-      localStorage.setItem(LAYOUT_KEY, JSON.stringify(api.toJSON())),
-    );
-    api.onDidLayoutChange(() => snapMiddleIfClose(api));
-  }, []);
+      if (saved && startupMode !== "dashboard") {
+        try {
+          api.fromJSON(JSON.parse(saved));
+        } catch (e) {
+          console.error("Discarding unreadable saved layout:", e);
+          localStorage.removeItem(LAYOUT_KEY);
+          api.clear();
+        }
+      }
+      api.onDidLayoutChange(() =>
+        localStorage.setItem(LAYOUT_KEY, JSON.stringify(api.toJSON())),
+      );
+      api.onDidLayoutChange(() => snapMiddleIfClose(api));
+    },
+    [startupMode],
+  );
 
   const openReader = useCallback(
     (translation?: string) => addReader(translation ?? defaultTranslation),
@@ -566,9 +603,28 @@ export function DockProvider({ children }: { children: ReactNode }) {
   const resetLayout = useCallback(() => {
     const api = apiRef.current;
     if (!api) return;
+    const current = localStorage.getItem(LAYOUT_KEY);
+    if (current) {
+      localStorage.setItem(RECENT_LAYOUT_KEY, current);
+      setHasRecentLayout(true);
+    }
     localStorage.removeItem(LAYOUT_KEY);
     api.clear();
     toast("Layout reset");
+  }, []);
+
+  const restoreRecentLayout = useCallback(() => {
+    const api = apiRef.current;
+    const snapshot = getRecentLayoutSnapshot();
+    if (!api || !snapshot) return;
+    try {
+      api.fromJSON(snapshot);
+      toast("Most recent layout restored");
+    } catch (e) {
+      console.error("Discarding unreadable recent-layout snapshot:", e);
+      localStorage.removeItem(RECENT_LAYOUT_KEY);
+      toast("Couldn't restore that layout");
+    }
   }, []);
 
   const value = useMemo<DockCtx>(
@@ -581,6 +637,8 @@ export function DockProvider({ children }: { children: ReactNode }) {
       getOpenReaderTranslations,
       saveLayout,
       resetLayout,
+      restoreRecentLayout,
+      hasRecentLayout,
       register,
     }),
     [
@@ -592,6 +650,8 @@ export function DockProvider({ children }: { children: ReactNode }) {
       getOpenReaderTranslations,
       saveLayout,
       resetLayout,
+      restoreRecentLayout,
+      hasRecentLayout,
       register,
     ],
   );

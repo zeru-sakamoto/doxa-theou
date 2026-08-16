@@ -10,10 +10,11 @@ import {
 } from "../api";
 import { useWorkspace } from "../state/workspace";
 import { exactReference } from "./CommandPalette";
-import { useDock } from "./dock";
+import { getRecentLayoutSnapshot, useDock } from "./dock";
 import { GhostTextInput } from "./GhostTextInput";
 import { setPendingSearch } from "./globalSearch";
 import { suggestCompletion } from "./inlineSuggest";
+import { LayoutThumbnail } from "./LayoutThumbnail";
 import { Menu, type MenuAction } from "./Menu";
 import {
   BibleIcon,
@@ -125,9 +126,20 @@ export function Header() {
       }))
     : [{ label: "Loading translations…", disabled: true, onSelect: () => {} }];
 
+  const recentLayout = dock.hasRecentLayout ? getRecentLayoutSnapshot() : null;
   const layoutItems: MenuAction[] = [
     { label: "Save layout", onSelect: () => dock.saveLayout() },
     { label: "Reset layout", danger: true, onSelect: () => dock.resetLayout() },
+    ...(recentLayout
+      ? [
+          {
+            label: "Restore most recent layout",
+            icon: <LayoutThumbnail layout={recentLayout} />,
+            separatorBefore: true,
+            onSelect: () => dock.restoreRecentLayout(),
+          },
+        ]
+      : []),
   ];
 
   const hbtn =

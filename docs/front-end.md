@@ -119,7 +119,7 @@ src/
   App.tsx                  <WorkspaceProvider><WorkspaceShell/></WorkspaceProvider>
   api.ts                   typed invoke() wrappers + canonical chapter counts
   motion.ts                shared motion constants (durations/easing/drawer spring) mirroring tokens.css
-  state/workspace.tsx      context store: theme, books, translations, active ref/translation
+  state/workspace.tsx      context store: theme, books, translations, active ref/translation, startup mode
   styles/
     tokens.css             three-layer tokens + dockview bridge (design source of truth)
     base.css               element resets, fonts, scrollbars, focus
@@ -130,7 +130,8 @@ src/
     Header.tsx             custom window bar + global controls
     StatusBar.tsx          reference · translation · status · live clock
     CommandPalette.tsx     ⌘K go-to-reference; also exports parseQuery(), reused by the anchor composer
-    dock.tsx               dockview wrapper, panel registry (Notes/Search/Settings lazy, Home eager), watermarkComponent, DockProvider/useDock, tab context menu (Duplicate tab, Close others, Close), joins an existing Reader/Notes group instead of re-splitting, snaps a two-group divider to the exact middle
+    dock.tsx               dockview wrapper, panel registry (Notes/Search/Settings lazy, Home eager), watermarkComponent, DockProvider/useDock, tab context menu (Duplicate tab, Close others, Close), joins an existing Reader/Notes group instead of re-splitting, snaps a two-group divider to the exact middle, gates layout restore-on-launch on `ws.startupMode`, snapshots a "most recent layout" (`doxa-recent-layout`) at launch and on Reset layout, `restoreRecentLayout()`/`getRecentLayoutSnapshot()`
+    LayoutThumbnail.tsx    tiny schematic (not pixel) preview of a saved layout — nested boxes recreating the grid shape from its serialized JSON, labeled per panel type/book+chapter; used for the "Restore most recent layout" menu item's icon
     LoadingScreen.tsx      full-window pulsing wordmark overlay; fades out over the mounted dock (no swap flash)
     Menu.tsx               reusable dropdown menu
     useMenuAlign.ts        clamps a popover (Menu + the notes header popovers) back inside its dock panel's bounds on open/resize
@@ -140,7 +141,7 @@ src/
     ErrorBoundary.tsx      top-level crash catcher → message + Reload (per-panel boundary lives in dock.tsx)
     globalSearch.ts        header→Search-panel query hand-off (survives the lazy panel's first-mount race)
   panels/
-    HomePanel.tsx          landing view: quick actions + recently-edited notes; also the dockview watermark
+    HomePanel.tsx          landing view: Continue reading card, "Read today's Proverbs" card, quick actions + recently-edited notes; also the dockview watermark
     ReaderPanel.tsx        scripture reader (one translation per panel), shows one chapter at a time
     reader/ChapterView.tsx renders a chapter's verses split into heading segments, rows/paragraph flow modes
     reader/SelectionToolbar.tsx  floating Copy/Copy Blockquote/Add Anchor menu shown on verse-text selection, portaled to document.body
@@ -159,7 +160,7 @@ src/
     notes/NotesAnchorBar.tsx   verse-anchor rows + composer (autocomplete, keyboard nav, chapter/verse validation), tinted with the note's color
     notes/notes.ts         sample-notes loader/parser, shared highlight palette, notePreview()
     SearchPanel.tsx        Scripture (FTS prefix) + Notes (client-side) result groups, each a collapsible accordion (open by default); Scripture hits highlight the matched term; Scripture search is scoped to `ws.defaultTranslation` plus the translation of any currently open Reader panel (`dock.getOpenReaderTranslations()`), not every translation in the DB
-    SettingsPanel.tsx      theme toggle, default translation, Bible-database import, Logos-notes import (with undo), highlight palette, notes folder, note reading-width slider, notes-panel placement (Active/Left/Right)
+    SettingsPanel.tsx      startup mode (restore last layout / show dashboard), theme toggle, default translation, Bible-database import, Logos-notes import (with undo), highlight palette, notes folder, note reading-width slider, notes-panel placement (Active/Left/Right)
 ```
 
 ---
@@ -177,7 +178,9 @@ the window drag region (`data-tauri-drag-region`). Left to right:
 - **Δόξα Θεοῦ** wordmark (logo placeholder).
 - **Global search** field: opens/updates the Search panel.
 - **Layout** menu: Save layout / Reset layout (resetting clears the saved
-  layout and leaves the dock empty, same as a fresh install — see below).
+  layout and leaves the dock empty, same as a fresh install — see below), plus
+  a **Restore most recent layout** item (shown only when a snapshot exists) —
+  a small `LayoutThumbnail` schematic of that layout as its icon.
 - Right cluster: **Bible reader ▾** (translations listed alphabetically by
   code; pick one → opens a Reader bound to it) · **Notes** · **Settings**.
 - **Window controls**: minimize · maximize/restore · close. (The close control
@@ -192,22 +195,35 @@ Thin and quiet: **active reference** (mono) · **active translation** ·
 ### Dockable center
 
 A `dockview-react` surface. Panels can be dragged to split/tab/rearrange freely
-(1×1, 2×1, quad, …). The layout is serialized to `localStorage` on every change
-and **restored on launch** (`register` in `dock.tsx` calls `api.fromJSON`);
-restored Reader/Notes tabs reopen where they were, since each panel mirrors its
-live position/selection into its own params (see "Duplicate tab" below).
-**Layout ▸ Save/Reset** manage it explicitly. The dock mounts once `ws.ready`
+(1×1, 2×1, quad, …). The layout is serialized to `localStorage` (`doxa-layout`)
+on every change, same as always. Whether it's **restored on launch** is now a
+Settings ▸ Startup ▸ **On launch** choice (`ws.startupMode`, `dock.tsx`'s
+`register`): **"Restore last layout"** (default — calls `api.fromJSON` same as
+before) or **"Show dashboard"** (skips the restore call, leaving the dock
+empty for `HomePanel` to fill, without touching the saved layout itself —
+autosave keeps writing to it exactly as it does today). Restored Reader/Notes
+tabs reopen where they were, since each panel mirrors its live
+position/selection into its own params (see "Duplicate tab" below).
+**Layout ▸ Save/Reset** manage `doxa-layout` explicitly.
+
+Regardless of startup mode, `register()` also snapshots whatever `doxa-layout`
+held into a second key (`doxa-recent-layout`) right before this session's own
+changes can overwrite it — capturing "what was open when the app was last
+closed" — and `resetLayout()` does the same right before clearing. **Layout ▸
+Restore most recent layout** (shown only when that snapshot exists) restores
+it via `api.fromJSON`, so switching to dashboard mode or hitting Reset never
+permanently loses the previous arrangement. The dock mounts once `ws.ready`
 (after `list_books`/`list_translations` resolve); until then a full-window
 `LoadingScreen` overlay (pulsing wordmark) covers it and **fades out over** the
 mounted dock rather than being swapped for it, so there's no hand-off flash.
 
-When there's **no** saved layout — a fresh install, an explicit **Reset
-layout**, or a corrupt/unparseable blob (discarded on read) — the dock opens
-with zero panels, which dockview's built-in watermark mechanism fills with
-`HomePanel` (passed as `watermarkComponent` in `dock.tsx`) — see §6.
-`HomePanel` is the default empty-dock screen — it isn't a panel type, so it
-can't be opened as a tab; the only way back to it mid-session is closing every
-open panel.
+When there's **no** saved layout to restore — a fresh install, "Show
+dashboard" startup mode, an explicit **Reset layout**, or a corrupt/unparseable
+blob (discarded on read) — the dock opens with zero panels, which dockview's
+built-in watermark mechanism fills with `HomePanel` (passed as
+`watermarkComponent` in `dock.tsx`) — see §6. `HomePanel` is the default
+empty-dock screen — it isn't a panel type, so it can't be opened as a tab; the
+only way back to it mid-session is closing every open panel.
 
 Each panel's group header shows dockview tabs (drag + close). Right-clicking a
 tab opens a native context menu via `DockviewReact`'s `getTabContextMenuItems`
@@ -282,23 +298,29 @@ Registered in `dock.tsx` under a `components` map (`id → component`).
 
 | Panel        | Wired to backend                                             | Notes                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ------------ | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Home**     | —                                                            | Landing view: quick actions (start reading, open Notes/Search/Settings) + a recently-edited-notes list. The dockview watermark shown whenever the dock is empty — not an openable panel/tab.                                                                                                                                                                                                                               |
+| **Home**     | —                                                            | Landing view: Continue reading card, "Read today's Proverbs" card, quick actions (start reading, open Notes/Search/Settings) + a recently-edited-notes list. The dockview watermark shown whenever the dock is empty (see §5's startup-mode/Reset-layout cases) — not an openable panel/tab.                                                                                                                               |
 | **Reader**   | `get_chapter`, `list_books`                                  | One translation, chosen at open time ("version-dedicated").                                                                                                                                                                                                                                                                                                                                                                |
 | **Search**   | `search` (FTS5 prefix / bm25)                                | **Scripture** group (FTS5/bm25 prefix match via `search`; matched term highlighted with `<mark>`) + **Notes** group (client-side substring match over the in-memory notes — title/tags/body); note hits open in the Notes panel. Both groups are independent collapsible accordions, open by default. The `.panel__scroll` results list scrolls via `workspace/useArrowScroll.ts` while Search is dockview's active panel. |
 | **Notes**    | `load_notes`/`save_note`/`delete_note`                       | Header, list, and a real Tiptap editor (toolbar, anchors, optional title); notes persist to disk via `NotesProvider` (`src/state/notes.tsx`), debounced per-note.                                                                                                                                                                                                                                                          |
-| **Settings** | `list_translations`, `import_bible_db`, `import_logos_notes` | Theme toggle, default translation, Bible-database import (pick a prebuilt `bible.sqlite`), Logos-notes import (one or more `.txt`/HTML exports → notes, dedupe + per-import undo + retitles already-imported blank-titled duplicates), shared highlight palette, notes folder picker, notes-panel placement (Active/Left/Right).                                                                                           |
+| **Settings** | `list_translations`, `import_bible_db`, `import_logos_notes` | Startup mode (restore last layout / show dashboard), theme toggle, default translation, Bible-database import (pick a prebuilt `bible.sqlite`), Logos-notes import (one or more `.txt`/HTML exports → notes, dedupe + per-import undo + retitles already-imported blank-titled duplicates), shared highlight palette, notes folder picker, notes-panel placement (Active/Left/Right).                                      |
 
 **Home** (`HomePanel.tsx`). The empty-dock screen — passed only as
 dockview's `watermarkComponent` (auto-shown whenever the dock has zero
-panels: launch with no saved layout, a cleared/corrupt saved layout, "Reset
-layout", or closing every panel mid-session). It's not registered in the `components` map, so
-it can't be opened as a tab; the only way back to it mid-session is closing
-everything else. It reads `useDock()`/`useWorkspace()`/`useNotes()` directly
-rather than through props. Content: a row of quick-action buttons (start
-reading in `ws.defaultTranslation`, open Notes, open Search, open Settings)
-and a "Recently edited" list — the 5 most recently modified notes
-(`useNotes().notes`, sorted by `modified` client-side), each row opening
-Notes generally rather than deep-linking to that specific note (no
+panels: launch with no saved layout, "Show dashboard" startup mode, a
+cleared/corrupt saved layout, "Reset layout", or closing every panel
+mid-session). It's not registered in the `components` map, so it can't be
+opened as a tab; the only way back to it mid-session is closing everything
+else. It reads `useDock()`/`useWorkspace()`/`useNotes()` directly rather than
+through props. Content, top to bottom: a **Continue reading** card
+(`ws.lastReaderPosition`, falling back to "Start reading" when there's no
+history yet), a smaller **"Read today's Proverbs"** card (resolves the
+"Proverbs" book from `ws.books`, opens chapter `Math.min(day-of-month,
+chapterCount(bookId))` in `ws.defaultTranslation` — Proverbs has exactly 31
+chapters, so the clamp never actually triggers), a row of quick-action
+buttons (start reading in `ws.defaultTranslation`, open Notes, open Search,
+open Settings), and a "Recently edited" list — the 5 most recently modified
+notes (`useNotes().notes`, sorted by `modified` client-side), each row
+opening Notes generally rather than deep-linking to that specific note (no
 per-note-open API exists yet).
 
 **Reader.** Header carries the **TOC toggle**, current reference, and the bound
@@ -808,6 +830,10 @@ Each has an upgrade path noted in-code:
 - No reference-history tracking exists (`activeReference` is a single
   overwritten value, not a list), so Home surfaces recent _notes_ activity
   only, not recently-read passages.
+- **"Restore most recent layout"**'s preview (`LayoutThumbnail.tsx`) is a
+  generated schematic (boxes + panel labels from the saved layout's own JSON),
+  not a real screenshot — a pixel capture would need a new dependency
+  (`html2canvas` or similar) and an async delay on app-close to take it.
 - The Notes 244px sidebar always renders bars-style rows and ignores
   `ws.notesListDisplay` — cards don't fit that width, so this is a hard rule,
   not a follow-up TODO. Only the full-width "notes home" list (no note

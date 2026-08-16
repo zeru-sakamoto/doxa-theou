@@ -109,6 +109,38 @@ export function SettingsPanel() {
       <div className="panel__scroll mx-auto w-full max-w-[640px]">
         <section className="[&+&]:mt-6">
           <h3 className="mb-2 text-(length:--text-xs) uppercase tracking-[0.06em] text-muted">
+            Startup
+          </h3>
+          <div className="flex items-center justify-between gap-3 py-2">
+            <div className="flex flex-col">
+              <span className="text-(length:--text-sm)">On launch</span>
+              <span className="panel__muted">
+                Reopen where you left off, or start at the dashboard
+              </span>
+            </div>
+            <div className="seg" role="group" aria-label="On launch">
+              <button
+                className={
+                  "seg__btn" + (ws.startupMode === "layout" ? " is-on" : "")
+                }
+                onClick={() => ws.setStartupMode("layout")}
+              >
+                Restore last layout
+              </button>
+              <button
+                className={
+                  "seg__btn" + (ws.startupMode === "dashboard" ? " is-on" : "")
+                }
+                onClick={() => ws.setStartupMode("dashboard")}
+              >
+                Show dashboard
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="[&+&]:mt-6">
+          <h3 className="mb-2 text-(length:--text-xs) uppercase tracking-[0.06em] text-muted">
             Appearance
           </h3>
           <div className="flex items-center justify-between gap-3 py-2">

@@ -52,8 +52,10 @@ works around:
   genuinely absent from the source (no data to recover).
 - **Trailing scraper artifacts**: literal `" end of footnotes"` /
   `" end of crossrefs"` strings appended to some verses — stripped.
-- **Glued text**: missing spaces at some punctuation/case boundaries from
-  stripped line breaks — patched with a best-effort (not exhaustive) regex pass.
+- **Glued text**: missing spaces at some punctuation/case boundaries, and
+  between clause punctuation and a following opening quote mark (e.g.
+  `says,“Rejoice`), from stripped line breaks — patched with a best-effort
+  (not exhaustive) regex pass.
 
 ## Schema (`bible.sqlite`)
 

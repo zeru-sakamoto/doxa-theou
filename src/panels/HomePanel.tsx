@@ -4,6 +4,7 @@
 // reuse the existing dock openers directly — no new opener functions needed.
 import { useMemo } from "react";
 import { motion, useReducedMotion } from "motion/react";
+import { chapterCount } from "../api";
 import { DUR_BASE, EASE_OUT } from "../motion";
 import { useNotes } from "../state/notes";
 import { useWorkspace } from "../state/workspace";
@@ -61,6 +62,11 @@ export function HomePanel() {
 
   const pos = ws.lastReaderPosition;
 
+  const proverbsBook = ws.books.find((b) => b.name === "Proverbs");
+  const proverbsChapter = proverbsBook
+    ? Math.min(new Date().getDate(), chapterCount(proverbsBook.id))
+    : null;
+
   return (
     <div className="panel">
       <div className="panel__scroll mx-auto w-full max-w-[960px] pt-12">
@@ -117,6 +123,31 @@ export function HomePanel() {
                 />
               </div>
             </motion.button>
+
+            {proverbsBook && proverbsChapter && (
+              <motion.button
+                {...entrance(0.06)}
+                className={
+                  quickAction + " border border-border rounded-(--radius-sm)"
+                }
+                onClick={() =>
+                  dock.gotoReference(
+                    proverbsBook.id,
+                    proverbsChapter,
+                    undefined,
+                    ws.defaultTranslation,
+                  )
+                }
+              >
+                <BibleIcon size={ICON.md} strokeWidth={2} />
+                <span>
+                  Read today's Proverbs
+                  <span className="block text-(length:--text-xs) text-muted">
+                    Proverbs {proverbsChapter}
+                  </span>
+                </span>
+              </motion.button>
+            )}
 
             <motion.section {...entrance(0.08)}>
               <h3 className={`mb-2 ${eyebrow}`}>Recently edited</h3>
