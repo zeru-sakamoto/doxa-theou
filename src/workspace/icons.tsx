@@ -78,6 +78,15 @@ export const SettingsIcon = (
   </Svg>
 );
 
+export const KeyboardIcon = (
+  p: SVGProps<SVGSVGElement> & { size?: number },
+) => (
+  <Svg {...p}>
+    <rect x="2" y="6" width="20" height="12" rx="2" />
+    <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h12" />
+  </Svg>
+);
+
 // Bible: a closed book with a cross on the cover, so the Reader/Bible reads as
 // scripture rather than a generic book. (Replaces the old plain BookIcon; every
 // use of it was the Bible context.)

@@ -21,6 +21,9 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src"],
-  "exclude": ["src/workspace/inlineSuggest.selfcheck.ts"],
+  "exclude": [
+    "src/workspace/inlineSuggest.selfcheck.ts",
+    "src/panels/typing/typingEngine.selfcheck.ts"
+  ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

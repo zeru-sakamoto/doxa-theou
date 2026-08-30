@@ -67,6 +67,15 @@ fn list_section_headings(
 }
 
 #[tauri::command]
+fn list_section_heading_ranges(
+    bible: State<'_, Bible>,
+    translation: String,
+) -> Result<Vec<db::HeadingRange>, String> {
+    let conn = bible.0.lock().map_err(|e| e.to_string())?;
+    db::list_section_heading_ranges(&conn, &translation).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn search(
     bible: State<'_, Bible>,
     query: String,
@@ -243,6 +252,7 @@ pub fn run() {
             section_headings_for_chapter,
             find_section_heading,
             list_section_headings,
+            list_section_heading_ranges,
             search,
             import_bible_db,
             load_notes,

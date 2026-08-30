@@ -130,7 +130,7 @@ src/
     Header.tsx             custom window bar + global controls
     StatusBar.tsx          reference · translation · status · live clock
     CommandPalette.tsx     ⌘K go-to-reference; also exports parseQuery(), reused by the anchor composer
-    dock.tsx               dockview wrapper, panel registry (Notes/Search/Settings lazy, Home eager), watermarkComponent, DockProvider/useDock, tab context menu (Duplicate tab, Close others, Close), joins an existing Reader/Notes group instead of re-splitting, snaps a two-group divider to the exact middle, gates layout restore-on-launch on `ws.startupMode`, snapshots a "most recent layout" (`doxa-recent-layout`) at launch and on Reset layout, `restoreRecentLayout()`/`getRecentLayoutSnapshot()`
+    dock.tsx               dockview wrapper, panel registry (Notes/Search/Settings/Typing lazy, Home eager), watermarkComponent, DockProvider/useDock, tab context menu (Duplicate tab, Close others, Close), joins an existing Reader/Notes group instead of re-splitting, snaps a two-group divider to the exact middle, gates layout restore-on-launch on `ws.startupMode`, snapshots a "most recent layout" (`doxa-recent-layout`) at launch and on Reset layout, `restoreRecentLayout()`/`getRecentLayoutSnapshot()`
     LayoutThumbnail.tsx    tiny schematic (not pixel) preview of a saved layout — nested boxes recreating the grid shape from its serialized JSON, labeled per panel type/book+chapter; used for the "Restore most recent layout" menu item's icon
     LoadingScreen.tsx      full-window pulsing wordmark overlay; fades out over the mounted dock (no swap flash)
     Menu.tsx               reusable dropdown menu
@@ -161,6 +161,12 @@ src/
     notes/notes.ts         sample-notes loader/parser, shared highlight palette, notePreview()
     SearchPanel.tsx        Scripture (FTS prefix) + Notes (client-side) result groups, each a collapsible accordion (open by default); Scripture hits highlight the matched term; Scripture search is scoped to `ws.defaultTranslation` plus the translation of any currently open Reader panel (`dock.getOpenReaderTranslations()`), not every translation in the DB
     SettingsPanel.tsx      startup mode (restore last layout / show dashboard), theme toggle, default translation, Bible-database import, Logos-notes import (with undo), highlight palette, notes folder, note reading-width slider, notes-panel placement (Active/Left/Right)
+    TypingPanel.tsx        Monkeytype-style typing practice: faded target passage/chapter, live WPM + accuracy, Tab restarts/advances per in-progress state, Shift+Tab always advances
+    typing/typingEngine.ts     pure keystroke/diff/WPM/accuracy state machine (no DOM); typingEngine.selfcheck.ts is its assert-based check (`node src/panels/typing/typingEngine.selfcheck.ts`), excluded from tsconfig's `include`
+    typing/passageSource.ts    random/sequential passage (heading-range) & chapter selection + scope filter + verse-text fetching (joins/slices across chapters); remembers sequential position in `doxa-typing-seq-pos-*`
+    typing/typingStats.ts      localStorage history (`doxa-typing-history`, capped 200) + panel-scoped settings (show WPM/accuracy, tracking scope, mode/order/scope-filter prefs) — standalone get/set functions, not React-context state
+    typing/TypingScopeMenu.tsx book/testament scope-filter popover (single-select)
+    typing/TypingSettingsMenu.tsx  gear popover: display toggles + tracking-scope settings, scoped to this panel only
 ```
 
 ---

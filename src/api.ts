@@ -48,6 +48,15 @@ export interface HeadingSuggestion {
   heading: string;
 }
 
+export interface HeadingRange {
+  book_id: number;
+  chapter: number;
+  verse_start: number;
+  end_chapter: number;
+  verse_end: number;
+  heading: string;
+}
+
 export interface SearchHit {
   verse_ref_id: number;
   book_id: number;
@@ -107,6 +116,23 @@ export const listSectionHeadings = async (
     translation,
   });
   headingListCache.set(translation, list);
+  return list;
+};
+
+// Every section heading for a translation with its full (book, range) — used
+// by the typing-practice panel to pick a passage-length target. Cached like
+// listSectionHeadings, same one-bulk-fetch rationale.
+const headingRangeCache = new Map<string, HeadingRange[]>();
+
+export const listSectionHeadingRanges = async (
+  translation: string,
+): Promise<HeadingRange[]> => {
+  const cached = headingRangeCache.get(translation);
+  if (cached) return cached;
+  const list = await invoke<HeadingRange[]>("list_section_heading_ranges", {
+    translation,
+  });
+  headingRangeCache.set(translation, list);
   return list;
 };
 

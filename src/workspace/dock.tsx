@@ -36,6 +36,7 @@ import {
   BibleIcon,
   CloseIcon,
   ICON,
+  KeyboardIcon,
   NotesIcon,
   SearchIcon,
   SettingsIcon,
@@ -56,6 +57,9 @@ const SettingsPanel = lazy(() =>
   import("../panels/SettingsPanel").then((m) => ({
     default: m.SettingsPanel,
   })),
+);
+const TypingPanel = lazy(() =>
+  import("../panels/TypingPanel").then((m) => ({ default: m.TypingPanel })),
 );
 
 function PanelFallback() {
@@ -113,10 +117,11 @@ export function getRecentLayoutSnapshot(): SerializedDockview | null {
     return null;
   }
 }
-type Singleton = "search" | "settings";
+type Singleton = "search" | "settings" | "typing";
 const TITLES: Record<Singleton, string> = {
   search: "Search",
   settings: "Settings",
+  typing: "Typing Practice",
 };
 
 // How close (in px) to the exact 50/50 split a sash drag has to land for it
@@ -222,6 +227,13 @@ const components = {
       </Suspense>
     </PanelErrorBoundary>
   ),
+  typing: () => (
+    <PanelErrorBoundary>
+      <Suspense fallback={<PanelFallback />}>
+        <TypingPanel />
+      </Suspense>
+    </PanelErrorBoundary>
+  ),
 };
 
 const TAB_ICONS: Record<string, typeof BibleIcon> = {
@@ -229,6 +241,7 @@ const TAB_ICONS: Record<string, typeof BibleIcon> = {
   notes: NotesIcon,
   search: SearchIcon,
   settings: SettingsIcon,
+  typing: KeyboardIcon,
 };
 
 // Custom tab renderer, one shared component for every panel type — picks
@@ -289,6 +302,7 @@ const tabComponents = {
   notes: PanelTab,
   search: PanelTab,
   settings: PanelTab,
+  typing: PanelTab,
 };
 
 // Dockview's built-in "no panels" affordance — shown automatically whenever

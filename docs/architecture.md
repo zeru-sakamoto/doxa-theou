@@ -62,6 +62,7 @@ message (surfaced in-panel, never a hard crash — see §6 error handling).
 | `list_translations`            | —                              | `Translation[]`    | `db.rs`            |
 | `get_chapter`                  | `bookId, chapter, translation` | `Verse[]`          | `db.rs`            |
 | `section_headings_for_chapter` | `bookId, chapter, translation` | `SectionHeading[]` | `db.rs`            |
+| `list_section_heading_ranges`  | `translation`                  | `HeadingRange[]`   | `db.rs`            |
 | `search`                       | `query, translation?`          | `SearchHit[]`      | `db.rs`            |
 | `import_bible_db`              | `source`                       | `void`             | `db.rs` / `lib.rs` |
 | `load_notes`                   | `folder?`                      | `Note[]`           | `notes.rs`         |

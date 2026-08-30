@@ -63,7 +63,9 @@ pub struct HeadingSuggestion {
 /// (scoped to one already-known book/chapter) or `HeadingSuggestion` (title
 /// lookup only), this carries everything needed to exact-match an arbitrary
 /// (book, chapter, verse range) against every heading at once. Used by the
-/// Logos importer to auto-title notes without a per-note round trip.
+/// Logos importer to auto-title notes without a per-note round trip, and by
+/// the typing-practice panel to pick a passage-length target.
+#[derive(Serialize)]
 pub struct HeadingRange {
     pub book_id: i64,
     pub chapter: i64,
@@ -253,9 +255,10 @@ pub fn list_section_headings(
 }
 
 /// Every section heading for `translation` with its full (book, range) —
-/// see `HeadingRange`. Not exposed as a Tauri command; used internally by
-/// the Logos importer (`logos_import.rs`) to build an in-memory lookup once
-/// per import instead of a query per note.
+/// see `HeadingRange`. Exposed as the `list_section_heading_ranges` Tauri
+/// command (typing-practice Passage mode); also used internally by the
+/// Logos importer (`logos_import.rs`) to build an in-memory lookup once per
+/// import instead of a query per note.
 pub fn list_section_heading_ranges(
     conn: &Connection,
     translation: &str,
@@ -399,5 +402,14 @@ mod tests {
         assert!(headings
             .iter()
             .any(|h| h.heading == "The Parable of the Prodigal Son"));
+
+        let ranges = list_section_heading_ranges(&c, "ESV").unwrap();
+        assert_eq!(ranges.len(), headings.len());
+        let prodigal = ranges
+            .iter()
+            .find(|r| r.heading == "The Parable of the Prodigal Son")
+            .unwrap();
+        assert!(prodigal.end_chapter >= prodigal.chapter);
+        assert!(prodigal.verse_end >= prodigal.verse_start || prodigal.end_chapter > prodigal.chapter);
     }
 }

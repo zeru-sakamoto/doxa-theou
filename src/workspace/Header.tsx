@@ -1,6 +1,6 @@
 // Main header = custom window bar. Left: Doxa Theou wordmark. Then global search
 // + Layout menu. Right cluster (order per spec): Bible reader ▾ · Notes ·
-// Settings · window controls (min / max-restore / close).
+// Typing Practice · Settings · window controls (min / max-restore / close).
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
@@ -21,6 +21,7 @@ import {
   ChevronDownIcon,
   CloseIcon,
   ICON,
+  KeyboardIcon,
   LayoutIcon,
   MaximizeIcon,
   MinimizeIcon,
@@ -204,6 +205,13 @@ export function Header() {
         </Menu>
         <button className={hbtn} onClick={() => dock.openNotes()} title="Notes">
           <NotesIcon size={ICON.lg} strokeWidth={2.25} />
+        </button>
+        <button
+          className={hbtn}
+          onClick={() => dock.openSingleton("typing")}
+          title="Typing Practice"
+        >
+          <KeyboardIcon size={ICON.lg} strokeWidth={2.25} />
         </button>
         <button
           className={hbtn}

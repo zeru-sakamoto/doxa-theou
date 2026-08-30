@@ -32,6 +32,7 @@ import-examples/
 *.njsproj
 *.sln
 *.sw?
+temp
 
 # Mock Data
 src/panels/notes/sample
