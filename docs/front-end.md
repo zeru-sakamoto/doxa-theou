@@ -166,6 +166,7 @@ src/
     typing/passageSource.ts    random/sequential passage (heading-range) & chapter selection + scope filter + verse-text fetching (joins/slices across chapters); remembers sequential position in `doxa-typing-seq-pos-*`
     typing/typingStats.ts      localStorage history (`doxa-typing-history`, capped 200) + panel-scoped settings (show WPM/accuracy, tracking scope, mode/order/scope-filter prefs) — standalone get/set functions, not React-context state
     typing/TypingScopeMenu.tsx book/testament scope-filter popover (single-select)
+    typing/TypingReferencePicker.tsx  magnifying-glass popover: pick one specific verse/passage/chapter to type, bypassing random/sequential selection for that one load
     typing/TypingSettingsMenu.tsx  gear popover: display toggles + tracking-scope settings, scoped to this panel only
 ```
 

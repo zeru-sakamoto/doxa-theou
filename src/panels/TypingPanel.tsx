@@ -63,6 +63,7 @@ import {
   type TypingSession,
 } from "./typing/typingStats";
 import { scopeLabel, TypingScopeMenu } from "./typing/TypingScopeMenu";
+import { TypingReferencePicker } from "./typing/TypingReferencePicker";
 import { TypingSettingsMenu } from "./typing/TypingSettingsMenu";
 
 // The text viewport's height and line-height are both derived from
@@ -214,6 +215,12 @@ export function TypingPanel() {
     ws.books,
     ws.defaultTranslation,
   ]);
+
+  const handlePick = (pickedMode: TypingMode, pt: PassageText) => {
+    setMode(pickedMode);
+    setTarget(pt);
+    setEngine(createTypingState(pt.text));
+  };
 
   // Fires on mode change, and once when passage-mode's range list first
   // arrives. Deliberately NOT on order/scope/verseLength changes — tweaking
@@ -409,6 +416,13 @@ export function TypingPanel() {
           </button>
         </div>
         <TypingScopeMenu books={ws.books} scope={scope} onChange={setScope} />
+        <TypingReferencePicker
+          books={ws.books}
+          ranges={ranges}
+          translation={ws.defaultTranslation}
+          mode={mode}
+          onPick={handlePick}
+        />
       </div>
 
       <div className="absolute top-3 right-3 z-10">
@@ -428,9 +442,9 @@ export function TypingPanel() {
 
       <div className="flex-1 overflow-hidden flex flex-col items-center justify-center py-3 px-4">
         <div className="w-full max-w-[640px] flex flex-col items-center gap-4">
-          {(showWpm || showAccuracy) && engine && (
+          {(showWpm || showAccuracy) && (
             <div className="flex items-center gap-6 text-(length:--text-2xl) font-(family-name:--font-mono)">
-              {showWpm && (
+              {showWpm && engine && (
                 <span>
                   {Math.round(wpmNow(engine, now))}{" "}
                   <span className="text-(length:--text-xs) text-muted">
@@ -438,7 +452,7 @@ export function TypingPanel() {
                   </span>
                 </span>
               )}
-              {showAccuracy && (
+              {showAccuracy && engine && (
                 <span>
                   {Math.round(accuracyNow(engine) * 100)}%{" "}
                   <span className="text-(length:--text-xs) text-muted">
@@ -446,18 +460,8 @@ export function TypingPanel() {
                   </span>
                 </span>
               )}
-            </div>
-          )}
-
-          <div className="flex items-center gap-3 text-(length:--text-xs) font-(family-name:--font-mono) text-muted">
-            <span>{ws.defaultTranslation}</span>
-            {target && <span>· {target.label}</span>}
-            {mode === "passage" && target?.heading && (
-              <span>· "{target.heading}"</span>
-            )}
-            {(showWpm || showAccuracy) && (
-              <span>
-                · tracking:{" "}
+              <span className="text-(length:--text-xs) text-muted">
+                tracking:{" "}
                 {statsScope === "global"
                   ? "all time"
                   : statsScope === "session"
@@ -466,6 +470,22 @@ export function TypingPanel() {
                 {trackedAccuracy !== null
                   ? `(${Math.round(trackedAccuracy * 100)}%)`
                   : "(no data)"}
+              </span>
+            </div>
+          )}
+
+          <div className="flex w-full items-center justify-center gap-3 text-(length:--text-xs) font-(family-name:--font-mono) text-muted">
+            <span className="shrink-0 whitespace-nowrap">
+              {ws.defaultTranslation}
+            </span>
+            {target && (
+              <span className="shrink-0 whitespace-nowrap">
+                · {target.label}
+              </span>
+            )}
+            {mode === "passage" && target?.heading && (
+              <span className="min-w-0 flex-1 truncate" title={target.heading}>
+                · "{target.heading}"
               </span>
             )}
           </div>
